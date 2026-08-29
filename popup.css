@@ -1,0 +1,204 @@
+:root {
+	color-scheme: light dark;
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+	margin: 0;
+	width: 420px;
+	color: #202124;
+	background: #fff;
+}
+
+#app {
+	padding: 14px;
+}
+
+.header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+h1 {
+	font-size: 15px;
+	margin: 0 0 3px;
+}
+
+p {
+	margin: 0;
+}
+
+#summary {
+	font-size: 12px;
+	color: #5f6368;
+}
+
+.icon-button {
+	width: 30px;
+	height: 30px;
+	padding: 0;
+	border: 1px solid #dadce0;
+	border-radius: 7px;
+	background: transparent;
+	cursor: pointer;
+	font-size: 16px;
+}
+
+.toolbar {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+label {
+	display: grid;
+	gap: 4px;
+	font-size: 11px;
+	color: #5f6368;
+}
+
+select,
+button,
+textarea {
+	font: inherit;
+}
+
+select,
+button {
+	border: 1px solid #dadce0;
+	border-radius: 7px;
+	background: #fff;
+	color: #202124;
+}
+
+select {
+	height: 32px;
+	padding: 0 8px;
+}
+
+textarea {
+	box-sizing: border-box;
+	width: 100%;
+	height: 230px;
+	resize: vertical;
+	padding: 9px;
+	border: 1px solid #dadce0;
+	border-radius: 7px;
+	line-height: 1.45;
+	font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+	font-size: 12px;
+	background: #fafafa;
+	color: #202124;
+}
+
+.actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+button {
+	min-height: 32px;
+	padding: 0 12px;
+	cursor: pointer;
+}
+
+button.primary {
+	border-color: #1a73e8;
+	background: #1a73e8;
+	color: #fff;
+}
+
+.status {
+	margin-top: 8px;
+	min-height: 18px;
+	font-size: 12px;
+	color: #5f6368;
+}
+
+.status.ok {
+	color: #137333;
+}
+
+.status.error {
+	color: #c5221f;
+}
+
+.compact-value {
+	min-height: 42px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 8px;
+	border: 1px solid #dadce0;
+	border-radius: 7px;
+	text-align: center;
+	word-break: break-all;
+	font-size: 13px;
+}
+
+body.compact {
+	width: 260px;
+}
+
+body.compact #app {
+	padding: 12px;
+}
+
+body.compact .header {
+	margin-bottom: 10px;
+}
+
+body.compact h1 {
+	font-size: 14px;
+}
+
+body.compact .icon-button {
+	flex: 0 0 auto;
+}
+
+@media (prefers-color-scheme: dark) {
+	body {
+		color: #e8eaed;
+		background: #202124;
+	}
+
+	#summary,
+	label,
+	.status {
+		color: #9aa0a6;
+	}
+
+	select,
+	button,
+	.icon-button,
+	textarea,
+	.compact-value {
+		border-color: #5f6368;
+		background: #292a2d;
+		color: #e8eaed;
+	}
+
+	textarea {
+		background: #1f2023;
+	}
+
+	button.primary {
+		border-color: #8ab4f8;
+		background: #8ab4f8;
+		color: #202124;
+	}
+
+	.status.ok {
+		color: #81c995;
+	}
+
+	.status.error {
+		color: #f28b82;
+	}
+}
