@@ -28,16 +28,23 @@ const state = {
 	mode: "detail"
 };
 
-const rangeSelect = document.getElementById("rangeSelect");
-const formatSelect = document.getElementById("formatSelect");
-const urls = document.getElementById("urls");
-const status = document.getElementById("status");
-const summary = document.getElementById("summary");
-const compactValue = document.getElementById("compactValue");
-const compactStatus = document.getElementById("compactStatus");
-const detailView = document.getElementById("detailView");
-const compactView = document.getElementById("compactView");
-const modeButton = document.getElementById("modeButton");
+/**
+ * DOM要素の参照を保持するオブジェクト。
+ */
+const elements = {
+	rangeSelect: /** @type {HTMLSelectElement} */ (document.getElementById("rangeSelect")),
+	formatSelect: /** @type {HTMLSelectElement} */ (document.getElementById("formatSelect")),
+	urls: /** @type {HTMLTextAreaElement} */ (document.getElementById("urls")),
+	status: document.getElementById("status"),
+	summary: document.getElementById("summary"),
+	compactValue: document.getElementById("compactValue"),
+	compactStatus: document.getElementById("compactStatus"),
+	detailView: document.getElementById("detailView"),
+	compactView: document.getElementById("compactView"),
+	modeButton: document.getElementById("modeButton"),
+	refreshButton: document.getElementById("refreshButton"),
+	copyButton: document.getElementById("copyButton")
+};
 
 /**
  * ポップアップが読み込まれた直後に初期化を行う。
@@ -81,7 +88,7 @@ async function initialize() {
 		applyActionToState(saved.lastAction);
 		showStatus(saved.lastStatus);
 	} else {
-		await regenerate(false, false);
+		await regenerate(false);
 	}
 
 	applyMode();
@@ -100,7 +107,7 @@ async function applyStoredState() {
 		applyActionToState(saved.lastAction);
 	} else {
 		state.tabs = [];
-		urls.value = "";
+		elements.urls.value = "";
 	}
 
 	showStatus(saved.lastStatus);
@@ -135,8 +142,8 @@ function syncSelectionState(saved) {
 	state.range = saved.range;
 	state.tabs = saved.lastAction?.tabs ?? state.tabs;
 
-	rangeSelect.value = state.range;
-	formatSelect.value = state.format;
+	elements.rangeSelect.value = state.range;
+	elements.formatSelect.value = state.format;
 }
 
 /**
@@ -145,19 +152,19 @@ function syncSelectionState(saved) {
  * @param {{ tabs?: TabEntry[], range?: string, format?: string, text?: string }} action 実行済みアクション。
  */
 function applyActionToState(action) {
-	state.tabs = action.tabs;
+	state.tabs = action.tabs ?? [];
 	state.range = action.range || state.range;
 	state.format = action.format || state.format;
 	valuesToControls();
-	urls.value = action.text ?? buildText();
+	elements.urls.value = action.text ?? buildText();
 }
 
 /**
  * state と select の値を同一にする。
  */
 function valuesToControls() {
-	rangeSelect.value = state.range;
-	formatSelect.value = state.format;
+	elements.rangeSelect.value = state.range;
+	elements.formatSelect.value = state.format;
 }
 
 /**
@@ -166,9 +173,9 @@ function valuesToControls() {
  * @returns {Promise<void>} 更新完了時に解決する Promise。
  */
 async function handleRangeChange() {
-	state.range = rangeSelect.value;
+	state.range = elements.rangeSelect.value;
 	await chrome.storage.local.set({ range: state.range });
-	await regenerate(false, false);
+	await regenerate(false);
 }
 
 /**
@@ -177,8 +184,8 @@ async function handleRangeChange() {
  * @returns {Promise<void>} 更新完了時に解決する Promise。
  */
 async function handleFormatChange() {
-	state.format = formatSelect.value;
-	urls.value = buildText();
+	state.format = elements.formatSelect.value;
+	elements.urls.value = buildText();
 	await chrome.storage.local.set({ format: state.format });
 }
 
@@ -186,14 +193,14 @@ async function handleFormatChange() {
  * 再生成ボタン押下時に対象URLを再収集する。
  */
 function handleRefreshClick() {
-	regenerate(false, false);
+	regenerate(false);
 }
 
 /**
  * コピーボタン押下時に URL を再収集してすぐコピーする。
  */
 function handleCopyClick() {
-	regenerate(true, true);
+	regenerate(true);
 }
 
 /**
@@ -207,30 +214,29 @@ async function handleModeToggle() {
 	applyMode();
 }
 
-rangeSelect.addEventListener("change", handleRangeChange);
-formatSelect.addEventListener("change", handleFormatChange);
-document.getElementById("refreshButton").addEventListener("click", handleRefreshClick);
-document.getElementById("copyButton").addEventListener("click", handleCopyClick);
-modeButton.addEventListener("click", handleModeToggle);
+elements.rangeSelect.addEventListener("change", handleRangeChange);
+elements.formatSelect.addEventListener("change", handleFormatChange);
+elements.refreshButton.addEventListener("click", handleRefreshClick);
+elements.copyButton.addEventListener("click", handleCopyClick);
+elements.modeButton.addEventListener("click", handleModeToggle);
 
 /**
  * 現在の収集範囲とフォーマットに基づいて URL を再生成し、必要ならコピーも実行する。
  *
- * @param {boolean} shouldCopy コピーが必要かどうか。
- * @param {boolean} copyFresh コピーを実行するかどうか。
+ * @param {boolean} [isCopy=false] コピーもあわせて実行するかどうか。
  * @returns {Promise<void>} 再生成完了時に解決する Promise.
  */
-async function regenerate(shouldCopy, copyFresh) {
+async function regenerate(isCopy = false) {
 	clearStatus();
 
 	const response = await chrome.runtime.sendMessage({
-		type: copyFresh ? "collect-and-copy" : "collect-only",
+		type: isCopy ? "collect-and-copy" : "collect-only",
 		range: state.range,
 		format: state.format
 	});
 
 	state.tabs = response?.tabs ?? [];
-	urls.value = response?.text ?? buildText();
+	elements.urls.value = response?.text ?? buildText();
 
 	if (response?.ok) {
 		showStatus({
@@ -241,7 +247,7 @@ async function regenerate(shouldCopy, copyFresh) {
 	} else {
 		showStatus({
 			ok: false,
-			message: response?.message || (shouldCopy ? "URL retrieval/copy failed." : "URL retrieval failed."),
+			message: response?.message || (isCopy ? "URL retrieval/copy failed." : "URL retrieval failed."),
 			count: response?.count ?? 0
 		});
 	}
@@ -253,10 +259,10 @@ async function regenerate(shouldCopy, copyFresh) {
  * @returns {string} 生成した URL 一覧テキスト。
  */
 function buildText() {
-	const lines = state.format === "title-url"
-		? state.tabs.map((tab) => `${tab.title}\t${tab.url}\n`)
-		: state.tabs.map((tab) => `${tab.url}\n`);
-	return lines.join("");
+	const isTitleUrl = state.format === "title-url";
+	return state.tabs
+		.map((tab) => (isTitleUrl ? `${tab.title}\t${tab.url}\n` : `${tab.url}\n`))
+		.join("");
 }
 
 /**
@@ -270,8 +276,10 @@ function showStatus(data) {
 		return;
 	}
 
-	const nodes = [status, compactStatus];
-	for (const node of nodes) {
+	const statusNodes = [elements.status, elements.compactStatus];
+	for (const node of statusNodes) {
+		if (!node)
+			continue;
 		node.textContent = data.message;
 		node.className = `status ${data.ok ? "ok" : "error"}`;
 		node.classList.remove("flash");
@@ -287,7 +295,9 @@ function showStatus(data) {
  * ステータス表示をクリアする。
  */
 function clearStatus() {
-	for (const node of [status, compactStatus]) {
+	for (const node of [elements.status, elements.compactStatus]) {
+		if (!node)
+			continue;
 		node.textContent = "";
 		node.className = "status";
 		node.classList.remove("flash");
@@ -300,19 +310,21 @@ function clearStatus() {
  * @param {number} [count=state.tabs.length] 表示する件数。
  */
 function updateSummary(count = state.tabs.length) {
-	summary.textContent = `${count} URL${count === 1 ? "" : "s"} collected`;
+	if (elements.summary)
+		elements.summary.textContent = `${count} URL${count === 1 ? "" : "s"} collected`;
 }
 
 /**
  * コンパクト表示用の値を更新する。
  */
 function updateCompactValue() {
+	if (!elements.compactValue) return;
+
 	const count = state.tabs.length;
-	if (count === 1 && state.range === "current") {
-		compactValue.textContent = state.tabs[0]?.url ?? "No URL";
-	} else {
-		compactValue.textContent = `${count} URL${count === 1 ? "" : "s"}`;
-	}
+	if (count === 1 && state.range === "current")
+		elements.compactValue.textContent = state.tabs[0]?.url ?? "No URL";
+	else
+		elements.compactValue.textContent = `${count} URL${count === 1 ? "" : "s"}`;
 }
 
 /**
@@ -321,9 +333,13 @@ function updateCompactValue() {
 function applyMode() {
 	const compact = state.mode === "compact";
 	document.body.classList.toggle("compact", compact);
-	detailView.hidden = compact;
-	compactView.hidden = !compact;
-	modeButton.title = compact ? "Switch to detailed view" : "Switch to compact view";
+	if (elements.detailView)
+		elements.detailView.hidden = compact;
+	if (elements.compactView)
+		elements.compactView.hidden = !compact;
+	if (elements.modeButton)
+		elements.modeButton.title = compact ? "Switch to detailed view"
+			: "Switch to compact view";
 	updateSummary();
 	updateCompactValue();
 }
