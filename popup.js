@@ -17,6 +17,13 @@ const compactView = document.getElementById("compactView");
 const modeButton = document.getElementById("modeButton");
 
 document.addEventListener("DOMContentLoaded", initialize);
+chrome.storage.onChanged.addListener((changes, areaName) => {
+	if (areaName !== "local")
+		return;
+	if (!("lastAction" in changes || "lastStatus" in changes))
+		return;
+	applyStoredState();
+});
 
 async function initialize() {
 	const saved = await chrome.storage.local.get({
@@ -46,6 +53,37 @@ async function initialize() {
 		await regenerate(false, false);
 	}
 
+	applyMode();
+}
+
+async function applyStoredState() {
+	const saved = await chrome.storage.local.get({
+		displayMode: "detail",
+		format: "url",
+		range: "current",
+		lastAction: null,
+		lastStatus: null
+	});
+
+	state.mode = saved.displayMode;
+	state.format = saved.format;
+	state.range = saved.range;
+
+	if (saved.lastAction?.tabs) {
+		state.tabs = saved.lastAction.tabs;
+		state.range = saved.lastAction.range || state.range;
+		state.format = saved.lastAction.format || state.format;
+		rangeSelect.value = state.range;
+		formatSelect.value = state.format;
+		urls.value = saved.lastAction.text ?? buildText();
+	} else {
+		state.tabs = [];
+		urls.value = "";
+	}
+
+	showStatus(saved.lastStatus);
+	updateSummary();
+	updateCompactValue();
 	applyMode();
 }
 
@@ -97,10 +135,10 @@ async function regenerate(shouldCopy, copyFresh) {
 }
 
 function buildText() {
-	if (state.format === "title-url") {
-		return state.tabs.map(tab => `${tab.title}\t${tab.url}`).join("\n");
-	}
-	return state.tabs.map(tab => tab.url).join("\n");
+	const lines = state.format === "title-url"
+		? state.tabs.map(tab => `${tab.title}\t${tab.url}\n`)
+		: state.tabs.map(tab => `${tab.url}\n`);
+	return lines.join("");
 }
 
 function showStatus(data) {
@@ -112,6 +150,9 @@ function showStatus(data) {
 	for (const node of nodes) {
 		node.textContent = data.message;
 		node.className = `status ${data.ok ? "ok" : "error"}`;
+		node.classList.remove("flash");
+		void node.offsetWidth;
+		node.classList.add("flash");
 	}
 	updateSummary(data.count ?? state.tabs.length);
 	updateCompactValue();
@@ -121,6 +162,7 @@ function clearStatus() {
 	for (const node of [status, compactStatus]) {
 		node.textContent = "";
 		node.className = "status";
+		node.classList.remove("flash");
 	}
 }
 

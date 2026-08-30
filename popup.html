@@ -16,6 +16,15 @@
 		</header>
 
 		<section id="detailView">
+			<textarea id="urls" spellcheck="false" aria-label="Collected URLs"></textarea>
+
+			<div class="actions">
+				<button id="refreshButton" type="button">Refresh</button>
+				<button id="copyButton" class="primary" type="button">Copy</button>
+			</div>
+
+			<p id="status" class="status" role="status" aria-live="polite"></p>
+
 			<div class="toolbar">
 				<label>
 					Range
@@ -33,15 +42,6 @@
 					</select>
 				</label>
 			</div>
-
-			<textarea id="urls" spellcheck="false" aria-label="Collected URLs"></textarea>
-
-			<div class="actions">
-				<button id="refreshButton" type="button">Regenerate</button>
-				<button id="copyButton" class="primary" type="button">Copy</button>
-			</div>
-
-			<p id="status" class="status" role="status" aria-live="polite"></p>
 		</section>
 
 		<section id="compactView" hidden>

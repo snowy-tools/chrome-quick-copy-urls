@@ -235,10 +235,10 @@ async function collectTabs(range) {
 }
 
 function buildText(tabs, format) {
-	if (format === "title-url") {
-		return tabs.map(tab => `${tab.title}\t${tab.url}`).join("\n");
-	}
-	return tabs.map(tab => tab.url).join("\n");
+	const lines = format === "title-url"
+		? tabs.map(tab => `${tab.title}\t${tab.url}\n`)
+		: tabs.map(tab => `${tab.url}\n`);
+	return lines.join("");
 }
 
 async function copyToClipboard(text) {
@@ -248,7 +248,8 @@ async function copyToClipboard(text) {
 			type: "offscreen-copy",
 			text
 		});
-		if (response?.ok) return { ok: true };
+		if (response?.ok)
+			return { ok: true };
 		return { ok: false, error: response?.error || "Copy failed." };
 	} catch (error) {
 		return {

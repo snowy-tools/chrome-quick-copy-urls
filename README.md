@@ -13,7 +13,7 @@ Chrome extension for collecting and copying tab URLs.
 - Select output format:
 	- `URL`
 	- `Title + URL` (tab-separated)
-- Regenerate the collected text and copy it again from the detailed popup.
+- Refresh the collected text and copy it again from the detailed popup.
 - Displays the number of collected/copied URLs.
 - Displays URL retrieval and clipboard-copy failures.
 
