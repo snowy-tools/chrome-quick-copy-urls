@@ -10,7 +10,6 @@
 	<main id="app">
 		<header class="header">
 			<div>
-				<h1>Quick URL Copy</h1>
 				<p id="summary">No URLs collected.</p>
 			</div>
 			<button id="modeButton" class="icon-button" type="button" title="Switch display mode" aria-label="Switch display mode">↔</button>
@@ -21,7 +20,7 @@
 				<label>
 					Range
 					<select id="rangeSelect">
-						<option value="current">Current tab</option>
+						<option value="current">Active tab</option>
 						<option value="window">Current window</option>
 						<option value="all">All tabs</option>
 					</select>
@@ -30,7 +29,7 @@
 					Format
 					<select id="formatSelect">
 						<option value="url">URL</option>
-						<option value="title-url">Title + URL</option>
+						<option value="title-url">Title + URL: {title}\t{url}\n</option>
 					</select>
 				</label>
 			</div>

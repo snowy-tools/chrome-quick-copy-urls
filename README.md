@@ -4,7 +4,7 @@ Chrome extension for collecting and copying tab URLs.
 
 ## Features
 
-- Copy the current tab URL.
+- Copy the active tab URL.
 - Copy URLs from all tabs in the current window.
 - Copy URLs from all Chrome tabs.
 - Toolbar button opens a popup without copying.
@@ -19,7 +19,7 @@ Chrome extension for collecting and copying tab URLs.
 
 ## Default shortcuts
 
-- `Alt+Shift+1` — current tab
+- `Alt+Shift+1` — active tab
 - `Alt+Shift+2` — current window
 - `Alt+Shift+3` — all tabs
 
@@ -36,4 +36,4 @@ Shortcuts can be changed at `chrome://extensions/shortcuts`.
 
 The extension uses Manifest V3 and the `offscreen` API for clipboard writes initiated by keyboard shortcuts. No website host permission is requested.
 
-The extension's toolbar button uses Chrome's action popup directly; it collects the current tab and does not copy automatically.
+The extension's toolbar button uses Chrome's action popup directly; it collects the active tab and does not copy automatically.

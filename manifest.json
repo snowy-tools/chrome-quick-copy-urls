@@ -2,7 +2,7 @@
 	"manifest_version": 3,
 	"name": "Quick URL Copy",
 	"version": "1.0.0",
-	"description": "Collect and copy URLs from the current tab, current window, or all tabs.",
+	"description": "Collect and copy URLs from the active tab, current window, or all tabs.",
 	"minimum_chrome_version": "109",
 	"permissions": [
 		"tabs",
@@ -23,7 +23,7 @@
 			"suggested_key": {
 				"default": "Alt+Shift+1"
 			},
-			"description": "Copy current tab URL"
+			"description": "Copy active tab URL"
 		},
 		"copy-window-tabs": {
 			"suggested_key": {
