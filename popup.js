@@ -3,6 +3,8 @@
  * 保存済み設定、最終アクション結果、表示モードを統合し、収集したURLの一覧やコピー状態を表示する。
  */
 
+import { formatUrlListText } from "./core.js";
+
 /**
  * @typedef {Object} TabEntry
  * @property {number|null} id タブID。
@@ -327,7 +329,7 @@ async function onRangeSelectChanged() {
  */
 async function onFormatSelectChanged() {
 	state.format = elements.formatSelect.value;
-	elements.urlList.value = "";
+	elements.urlList.value = formatUrlListText(state.tabs, state.format);
 
 	await chrome.storage.local.set({
 		format: state.format
