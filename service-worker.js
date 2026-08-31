@@ -20,7 +20,7 @@
 
 /**
  * @typedef {Object} PersistedAction
- * @property {string} range 収集対象範囲。
+ * @property {string} collectRange 収集対象範囲。
  * @property {string} format 出力フォーマット。
  * @property {CollectedTab[]} tabs 収集したタブ一覧。
  * @property {string} text 生成した文字列。
@@ -28,12 +28,12 @@
  */
 
 /**
- * @type {{ displayMode: string, format: string, range: string }}
+ * @type {{ displayMode: string, format: string, collectRange: string }}
  */
 const DEFAULT_SETTINGS = {
 	displayMode: "detail",
 	format: "url",
-	range: "current"
+	collectRange: "current"
 };
 
 /**
@@ -47,7 +47,7 @@ async function initializeDefaultSettings() {
 	await chrome.storage.local.set({
 		displayMode: current.displayMode ?? DEFAULT_SETTINGS.displayMode,
 		format: current.format ?? DEFAULT_SETTINGS.format,
-		range: current.range ?? DEFAULT_SETTINGS.range
+		collectRange: current.collectRange ?? DEFAULT_SETTINGS.collectRange
 	});
 }
 
@@ -58,9 +58,9 @@ async function initializeDefaultSettings() {
  * @returns {Promise<void>} 処理完了時に解決する Promise。
  */
 async function onCommand(command) {
-	const range = commandToRange(command);
+	const collectRange = commandToRange(command);
 
-	if (!range)
+	if (!collectRange)
 		// 収集範囲が指定されていない場合、何もせず終了する
 		return;
 
@@ -68,42 +68,46 @@ async function onCommand(command) {
 	const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
 
 	const format = settings.format ?? DEFAULT_SETTINGS.format;
-	await collectUrls(range, format, true);
+	await collectUrls(collectRange, format, true);
 	await openPopup();
 }
 
 /**
  * ポップアップからの収集要求を受け取り、必要に応じてレスポンスを返す。
  *
- * @param {{ type?: string, range?: string, format?: string }} message 受信したメッセージ。
+ * @param {{ type?: string, collectRange?: string, format?: string }} message 受信したメッセージ。
  * @param {unknown} sender 送信元情報。
  * @param {(response?: unknown) => void} sendResponse 応答用コールバック。
  * @returns {boolean | void} 非同期応答を行う場合は true を返す。
  */
 function onRuntimeMessage(message, sender, sendResponse) {
 	const shouldCopy = message?.type === "collect-and-copy";
-	collectUrls(message.range, message.format, shouldCopy).then(sendResponse);
+	collectUrls(
+		message.collectRange,
+		message.format,
+		shouldCopy,
+	).then(sendResponse);
 }
 
 /**
  * URL の収集を行い、動作履歴を記録する。
  *
- * @param {string} range 収集範囲。
+ * @param {string} collectRange 収集範囲。
  * @param {string} format 文字列出力フォーマット。
  * @param {bool} copy コピーを行うかどうか。
  * @returns {Promise<{ ok: boolean, message: string, count: number, tabs: CollectedTab[], text: string }>} 実行結果。
  */
-async function collectUrls(range, format, copy=false) {
+async function collectUrls(collectRange, format, copy=false) {
 	try {
 		let isSuccess = true;
 		let message = null;
 
 		// URLリストを収集し、テキストに変換
-		const data = await collectTabs(range);
+		const data = await collectTabs(collectRange);
 		const text = formatTabListText(data.tabs, format);
 
 		const actionState = {
-			range,
+			collectRange,
 			format,
 			tabs: data.tabs,
 			text,
@@ -139,34 +143,34 @@ async function collectUrls(range, format, copy=false) {
 			text,
 		};
 	} catch (error) {
-		return await handleCollectionError(range, format, error);
+		return await handleCollectionError(collectRange, format, error);
 	}
 }
 
 /**
  * 指定された範囲のタブを正規化して、URL一覧として扱いやすい形に整形する。
  *
- * @param {"current" | "window" | "all"} range 収集範囲。
+ * @param {"current" | "window" | "all"} collectRange 収集範囲。
  * @returns {Promise<{ tabs: CollectedTab[] }>} 正規化済みのタブ一覧。
  */
-async function collectTabs(range) {
+async function collectTabs(collectRange) {
 	let tabs;
 
-	if (range === "current") {
+	if (collectRange === "current") {
 		const result = await chrome.tabs.query({
 			active: true,
 			lastFocusedWindow: true
 		});
 
 		tabs = result.slice(0, 1);
-	} else if (range === "window") {
+	} else if (collectRange === "window") {
 		tabs = await chrome.tabs.query({
 			currentWindow: true
 		});
-	} else if (range === "all") {
+	} else if (collectRange === "all") {
 		tabs = await chrome.tabs.query({});
 	} else {
-		throw new Error(`Unknown range: ${range}`);
+		throw new Error(`Unknown collect range: ${collectRange}`);
 	}
 
 	const normalizedTabs = tabs
@@ -240,16 +244,16 @@ async function ensureOffscreenDocument() {
 
 /**
  * 最後の動作設定と処理結果をストレージへ保存する。
- * この変更はポップアップ側に検知され、そのUI表示に利用される。
+ * このデータはポップアップ側から参照され、UI表示に利用される。
  *
- * @param {{ range: string, format: string, tabs: CollectedTab[], text: string, status?: ActionStatus | null }} params 保存するアクション情報。
+ * @param {{ collectRange: string, format: string, tabs: CollectedTab[], text: string, status?: ActionStatus | null }} params 保存するアクション情報。
  * @returns {Promise<void>} 保存完了時に解決する Promise。
  */
-async function persistActionState({ range, format, tabs, text, status }) {
+async function persistActionState({ collectRange, format, tabs, text, status }) {
 	await chrome.storage.local.set({
 		lastAction: {
 			id: crypto.randomUUID(),
-			range,
+			collectRange,
 			format,
 			tabs,
 			text,
@@ -262,18 +266,18 @@ async function persistActionState({ range, format, tabs, text, status }) {
 /**
  * 収集処理時の例外発生に伴うエラーログ保存と応答用オブジェクト作成を行う。
  *
- * @param {string} range 収集範囲。
+ * @param {string} collectRange 収集範囲。
  * @param {string} format フォーマット。
  * @param {unknown} error 発生したエラー。
  * @returns {Promise<{ ok: false, message: string, count: 0, tabs: [], text: "" }>} エラー結果情報。
  */
-async function handleCollectionError(range, format, error) {
+async function handleCollectionError(collectRange, format, error) {
 	const message = error instanceof Error
 		? error.message
 		: String(error);
 
 	await persistActionState({
-		range,
+		collectRange,
 		format,
 		tabs: [],
 		text: "",

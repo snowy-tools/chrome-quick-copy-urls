@@ -13,9 +13,9 @@
 /**
  * @typedef {Object} ActionState
  * @property {TabEntry[]} tabs 収集済みタブ一覧。
- * @property {string} range 収集範囲。
+ * @property {string} collectRange 収集範囲。
  * @property {string} format 出力フォーマット。
- * @property {"detail" | "compact"} mode 表示モード。
+ * @property {"detail" | "compact"} displayMode 表示モード。
  */
 
 /**
@@ -23,20 +23,26 @@
  */
 const state = {
 	tabs: [],
-	range: "current",
+	collectRange: "current",
 	format: "url",
-	mode: "detail"
+	displayMode: "detail"
 };
 
 /**
  * DOM要素の参照を保持するオブジェクト。
  */
 const elements = {
-	rangeSelect: /** @type {HTMLSelectElement} */ (document.getElementById("rangeSelect")),
-	formatSelect: /** @type {HTMLSelectElement} */ (document.getElementById("formatSelect")),
-	urls: /** @type {HTMLTextAreaElement} */ (document.getElementById("urls")),
-	status: document.getElementById("status"),
-	summary: document.getElementById("summary"),
+	rangeSelect: /** @type {HTMLSelectElement} */ (
+		document.getElementById("rangeSelect")
+	),
+	formatSelect: /** @type {HTMLSelectElement} */ (
+		document.getElementById("formatSelect")
+	),
+	urlList: /** @type {HTMLTextAreaElement} */ (
+		document.getElementById("urlList")
+	),
+	statusLabel: document.getElementById("statusLabel"),
+	summaryLabel: document.getElementById("summaryLabel"),
 	compactValue: document.getElementById("compactValue"),
 	compactStatus: document.getElementById("compactStatus"),
 	detailView: document.getElementById("detailView"),
@@ -48,32 +54,13 @@ const elements = {
 
 /**
  * ポップアップが読み込まれた直後に初期化を行う。
+ * 保存済みの設定と直近のアクション結果を復元して UI を初期化する。
  *
  * @param {Event} event DOMContentLoaded イベント。
  */
-function handleInitialLoad(event) {
+function onInitialLoaded(event) {
 	initialize();
 }
-
-document.addEventListener("DOMContentLoaded", handleInitialLoad);
-
-/**
- * 保存された設定や最後の実行結果が更新されたら、UI を同期する。
- *
- * @param {Record<string, chrome.storage.StorageChange>} changes 変更されたストレージ項目。
- * @param {string} areaName 変更対象のストレージ領域。
- */
-function handleStorageChange(changes, areaName) {
-	if (areaName !== "local") {
-		return;
-	}
-	if (!("lastAction" in changes || "lastStatus" in changes)) {
-		return;
-	}
-	applyStoredState();
-}
-
-chrome.storage.onChanged.addListener(handleStorageChange);
 
 /**
  * 保存済みの設定と直近のアクション結果を復元して UI を初期化する。
@@ -82,7 +69,9 @@ chrome.storage.onChanged.addListener(handleStorageChange);
  */
 async function initialize() {
 	const saved = await getStoredSettings();
-	syncSelectionState(saved);
+
+	// UIを更新
+	syncConditionUi(saved);
 
 	if (saved.lastAction?.tabs) {
 		applyActionToState(saved.lastAction);
@@ -95,19 +84,96 @@ async function initialize() {
 }
 
 /**
+ * ストレージに保存された動作設定や実行結果をもとにUI を同期する。
+ *
+ * @param {Record<string, chrome.storage.StorageChange>} changes 変更されたストレージ項目。
+ * @param {string} areaName 変更対象のストレージ領域。
+ */
+function onStorageChanged(changes, areaName) {
+	if (areaName !== "local")
+		return;
+
+	if (!("lastAction" in changes || "lastStatus" in changes))
+		return;
+
+	applyStoredState();
+}
+
+/**
+ * 再生成ボタン押下時に対象URLを再収集する。
+ */
+function onRefreshButtonClicked() {
+	refreshUrlList(false);
+}
+
+/**
+ * コピーボタン押下時に URL を再収集してすぐコピーする。
+ */
+function onCopyButtonClicked() {
+	refreshUrlList(true);
+}
+
+/**
+ * 収集範囲の選択が変わったときに state と storage を更新し、一覧を再生成する。
+ *
+ * @returns {Promise<void>} 更新完了時に解決する Promise。
+ */
+async function onRangeSelectChanged() {
+	state.collectRange = elements.rangeSelect.value;
+
+	await chrome.storage.local.set({
+		collectRange: state.collectRange
+	});
+
+	await refreshUrlList(false);
+}
+
+/**
+ * 出力フォーマットの選択が変わったときに state と UI を更新する。
+ *
+ * @returns {Promise<void>} 更新完了時に解決する Promise。
+ */
+async function onFormatSelectChanged() {
+	state.format = elements.formatSelect.value;
+	elements.urlList.value = buildText();
+
+	await chrome.storage.local.set({
+		format: state.format
+	});
+}
+
+/**
+ * 表示モード切替ボタンが押されたときにモードを切り替える。
+ *
+ * @returns {Promise<void>} 保存と反映の完了時に解決する Promise。
+ */
+async function onModeButtonToggled() {
+	state.displayMode = state.displayMode === "detail"
+		? "compact"
+		: "detail";
+
+	await chrome.storage.local.set({
+		displayMode: state.displayMode
+	});
+
+	applyMode();
+}
+
+/**
  * storage の変更を受け取り、UI と内部 state を同一の状態へ揃える。
  *
  * @returns {Promise<void>} 更新反映完了時に解決する Promise。
  */
 async function applyStoredState() {
 	const saved = await getStoredSettings();
-	syncSelectionState(saved);
+
+	syncConditionUi(saved);
 
 	if (saved.lastAction?.tabs) {
 		applyActionToState(saved.lastAction);
 	} else {
 		state.tabs = [];
-		elements.urls.value = "";
+		elements.urlList.value = "";
 	}
 
 	showStatus(saved.lastStatus);
@@ -117,15 +183,60 @@ async function applyStoredState() {
 }
 
 /**
- * 保存された設定と最後のアクション状態を取得する。
+ * 現在の収集範囲とフォーマットに基づいて URL を再生成し、必要ならコピーも実行する。
  *
- * @returns {Promise<{ displayMode: string, format: string, range: string, lastAction: any, lastStatus: any }>} ストレージから復元した値。
+ * @param {boolean} [shouldCopy=false] コピーもあわせて実行するかどうか。
+ * @returns {Promise<void>} 再生成完了時に解決する Promise。
+ */
+async function refreshUrlList(shouldCopy = false) {
+	clearStatus();
+
+	// バックグラウンドでのURL収集 (およびコピー) をトリガーする
+	const response = await chrome.runtime.sendMessage({
+		type: shouldCopy ? "collect-and-copy" : "collect",
+		collectRange: state.collectRange,
+		format: state.format,
+	});
+
+	state.tabs = response?.tabs ?? [];
+	elements.urlList.value = response?.text ?? buildText();
+
+	if (response?.ok) {
+		showStatus({
+			ok: true,
+			message: response.message,
+			count: response.count
+		});
+
+		return;
+	}
+
+	showStatus({
+		ok: false,
+		message: response?.message
+			|| (shouldCopy
+				? "URL retrieval/copy failed."
+				: "URL retrieval failed."),
+		count: response?.count ?? 0
+	});
+}
+
+/**
+ * 保存された動作設定と最後のアクション状態を取得する。
+ *
+ * @returns {Promise<{
+ * 	displayMode: string,
+ * 	format: string,
+ * 	collectRange: string,
+ * 	lastAction: any,
+ * 	lastStatus: any
+ * }>} ストレージから復元した値。
  */
 function getStoredSettings() {
 	return chrome.storage.local.get({
 		displayMode: "detail",
 		format: "url",
-		range: "current",
+		collectRange: "current",
 		lastAction: null,
 		lastStatus: null
 	});
@@ -134,123 +245,48 @@ function getStoredSettings() {
 /**
  * storage の設定値を現在の UI に反映する。
  *
- * @param {{ displayMode?: string, format?: string, range?: string, lastAction?: { tabs?: TabEntry[] }, lastStatus?: any }} saved 保存済みの設定値。
+ * @param {{
+ * 	displayMode?: string,
+ * 	format?: string,
+ * 	collectRange?: string,
+ * 	lastAction?: { tabs?: TabEntry[] },
+ * 	lastStatus?: any
+ * }} saved 保存済みの設定値。
  */
-function syncSelectionState(saved) {
-	state.mode = saved.displayMode;
+function syncConditionUi(saved) {
+	state.displayMode = saved.displayMode;
 	state.format = saved.format;
-	state.range = saved.range;
+	state.collectRange = saved.collectRange;
 	state.tabs = saved.lastAction?.tabs ?? state.tabs;
 
-	elements.rangeSelect.value = state.range;
-	elements.formatSelect.value = state.format;
+	valuesToControls();
 }
 
 /**
  * 最後に実行したアクション情報を state と UI の入力欄に反映する。
  *
- * @param {{ tabs?: TabEntry[], range?: string, format?: string, text?: string }} action 実行済みアクション。
+ * @param {{
+ * 	tabs?: TabEntry[],
+ * 	collectRange?: string,
+ * 	format?: string,
+ * 	text?: string
+ * }} action 実行済みアクション。
  */
 function applyActionToState(action) {
 	state.tabs = action.tabs ?? [];
-	state.range = action.range || state.range;
+	state.collectRange = action.collectRange || state.collectRange;
 	state.format = action.format || state.format;
+
 	valuesToControls();
-	elements.urls.value = action.text ?? buildText();
+	elements.urlList.value = action.text ?? buildText();
 }
 
 /**
  * state と select の値を同一にする。
  */
 function valuesToControls() {
-	elements.rangeSelect.value = state.range;
+	elements.rangeSelect.value = state.collectRange;
 	elements.formatSelect.value = state.format;
-}
-
-/**
- * 収集範囲の選択が変わったときに state と storage を更新し、一覧を再生成する。
- *
- * @returns {Promise<void>} 更新完了時に解決する Promise。
- */
-async function handleRangeChange() {
-	state.range = elements.rangeSelect.value;
-	await chrome.storage.local.set({ range: state.range });
-	await regenerate(false);
-}
-
-/**
- * 出力フォーマットの選択が変わったときに state と UI を更新する。
- *
- * @returns {Promise<void>} 更新完了時に解決する Promise。
- */
-async function handleFormatChange() {
-	state.format = elements.formatSelect.value;
-	elements.urls.value = buildText();
-	await chrome.storage.local.set({ format: state.format });
-}
-
-/**
- * 再生成ボタン押下時に対象URLを再収集する。
- */
-function handleRefreshClick() {
-	regenerate(false);
-}
-
-/**
- * コピーボタン押下時に URL を再収集してすぐコピーする。
- */
-function handleCopyClick() {
-	regenerate(true);
-}
-
-/**
- * 表示モード切替ボタンが押されたときにモードを切り替える。
- *
- * @returns {Promise<void>} 保存と反映の完了時に解決する Promise。
- */
-async function handleModeToggle() {
-	state.mode = state.mode === "detail" ? "compact" : "detail";
-	await chrome.storage.local.set({ displayMode: state.mode });
-	applyMode();
-}
-
-elements.rangeSelect.addEventListener("change", handleRangeChange);
-elements.formatSelect.addEventListener("change", handleFormatChange);
-elements.refreshButton.addEventListener("click", handleRefreshClick);
-elements.copyButton.addEventListener("click", handleCopyClick);
-elements.modeButton.addEventListener("click", handleModeToggle);
-
-/**
- * 現在の収集範囲とフォーマットに基づいて URL を再生成し、必要ならコピーも実行する。
- *
- * @param {boolean} [isCopy=false] コピーもあわせて実行するかどうか。
- * @returns {Promise<void>} 再生成完了時に解決する Promise.
- */
-async function regenerate(isCopy = false) {
-	clearStatus();
-
-	const response = await chrome.runtime.sendMessage({
-		type: isCopy ? "collect-and-copy" : "collect-only",
-		range: state.range,
-		format: state.format
-	});
-
-	state.tabs = response?.tabs ?? [];
-	elements.urls.value = response?.text ?? buildText();
-
-	if (response?.ok) {
-		showStatus({
-			ok: true,
-			message: response.message,
-			count: response.count
-		});
-	} else {
-		showStatus({
-			ok: false,
-			message: response?.message || (isCopy ? "URL retrieval/copy failed." : "URL retrieval failed."),
-			count: response?.count ?? 0
-		});
-	}
 }
 
 /**
@@ -260,8 +296,12 @@ async function regenerate(isCopy = false) {
  */
 function buildText() {
 	const isTitleUrl = state.format === "title-url";
-	return state.tabs
-		.map((tab) => (isTitleUrl ? `${tab.title}\t${tab.url}\n` : `${tab.url}\n`))
+
+	return tabs
+		.map((tab) => isTitleUrl
+			? `${tab.title}\t${tab.url}\n`
+			: `${tab.url}\n`
+		)
 		.join("");
 }
 
@@ -276,12 +316,13 @@ function showStatus(data) {
 		return;
 	}
 
-	const statusNodes = [elements.status, elements.compactStatus];
-	for (const node of statusNodes) {
+	for (const node of [elements.statusLabel, elements.compactStatus]) {
 		if (!node)
 			continue;
+
 		node.textContent = data.message;
 		node.className = `status ${data.ok ? "ok" : "error"}`;
+
 		node.classList.remove("flash");
 		void node.offsetWidth;
 		node.classList.add("flash");
@@ -295,9 +336,10 @@ function showStatus(data) {
  * ステータス表示をクリアする。
  */
 function clearStatus() {
-	for (const node of [elements.status, elements.compactStatus]) {
+	for (const node of [elements.statusLabel, elements.compactStatus]) {
 		if (!node)
 			continue;
+
 		node.textContent = "";
 		node.className = "status";
 		node.classList.remove("flash");
@@ -310,36 +352,63 @@ function clearStatus() {
  * @param {number} [count=state.tabs.length] 表示する件数。
  */
 function updateSummary(count = state.tabs.length) {
-	if (elements.summary)
-		elements.summary.textContent = `${count} URL${count === 1 ? "" : "s"} collected`;
+	if (!elements.summaryLabel)
+		return;
+
+	elements.summaryLabel.textContent =
+		`${count} URL${count === 1 ? "" : "s"} collected`;
 }
 
 /**
  * コンパクト表示用の値を更新する。
  */
 function updateCompactValue() {
-	if (!elements.compactValue) return;
+	if (!elements.compactValue)
+		return;
 
 	const count = state.tabs.length;
-	if (count === 1 && state.range === "current")
-		elements.compactValue.textContent = state.tabs[0]?.url ?? "No URL";
-	else
-		elements.compactValue.textContent = `${count} URL${count === 1 ? "" : "s"}`;
+
+	if (count === 1 && state.collectRange === "current") {
+		elements.compactValue.textContent =
+			state.tabs[0]?.url ?? "No URL";
+
+		return;
+	}
+
+	elements.compactValue.textContent =
+		`${count} URL${count === 1 ? "" : "s"}`;
 }
 
 /**
  * 現在の表示モードに応じて詳細表示とコンパクト表示を切り替える。
  */
 function applyMode() {
-	const compact = state.mode === "compact";
+	const compact = state.displayMode === "compact";
+
 	document.body.classList.toggle("compact", compact);
+
 	if (elements.detailView)
 		elements.detailView.hidden = compact;
+
 	if (elements.compactView)
 		elements.compactView.hidden = !compact;
-	if (elements.modeButton)
-		elements.modeButton.title = compact ? "Switch to detailed view"
+
+	if (elements.modeButton) {
+		elements.modeButton.title = compact
+			? "Switch to detailed view"
 			: "Switch to compact view";
+	}
+
 	updateSummary();
 	updateCompactValue();
 }
+
+/* イベント登録 */
+document.addEventListener("DOMContentLoaded", onInitialLoaded);
+chrome.storage.onChanged.addListener(onStorageChanged);
+
+elements.rangeSelect.addEventListener("change", onRangeSelectChanged);
+elements.formatSelect.addEventListener("change", onFormatSelectChanged);
+elements.refreshButton.addEventListener("click", onRefreshButtonClicked);
+elements.copyButton.addEventListener("click", onCopyButtonClicked);
+elements.modeButton.addEventListener("click", onModeButtonToggled);
