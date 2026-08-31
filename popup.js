@@ -61,7 +61,13 @@ function onInitialLoaded(event) {
  * @returns {Promise<void>} 初期化完了時に解決する Promise。
  */
 async function initialize() {
-	await loadStateFromStorage();
+	const data = await getStoredSettings();
+
+	const displayMode = data.displayMode;
+	state.displayMode = displayMode;
+	applyDisplayMode(displayMode);
+
+	await loadStateFromStorage(data);
 }
 
 /**
@@ -70,14 +76,14 @@ async function initialize() {
  * @param {Record<string, chrome.storage.StorageChange>} changes 変更されたストレージ項目。
  * @param {string} areaName 変更対象のストレージ領域。
  */
-function onStorageChanged(changes, areaName) {
+async function onStorageChanged(changes, areaName) {
 	if (areaName !== "local")
 		return;
 
-	if (!("lastAction" in changes))
-		return;
-
-	loadStateFromStorage();
+	if ("lastAction" in changes) {
+		const data = await getStoredSettings();
+		loadStateFromStorage(data);
+	}
 }
 
 /**
@@ -130,29 +136,28 @@ async function getStoredSettings() {
 }
 
 /* ==========================================================================
-   State 更新用の関数群（DOM操作を行わず、内部データのみを更新する）
+   内部状態更新用の関数群（DOM操作を行わず、内部データのみを更新する）
    ========================================================================== */
 
 /**
  * storage の設定値を現在の state に読み込む。
+ *
+ * @param {Object} data ストレージから取得したデータ。
  */
-async function loadStateFromStorage() {
-	const data = await getStoredSettings();
+async function loadStateFromStorage(data) {
+	const lastAction = data.lastAction;
 
-	state.displayMode = data.displayMode ?? state.displayMode;
-	switchDisplayMode();
-
-	state.format = data.format ?? state.format;
-	state.collectRange = data.collectRange ?? state.collectRange;
-	state.tabs = data.lastAction?.tabs ?? [];
+	state.format = lastAction.format ?? state.format;
+	state.collectRange = lastAction.collectRange ?? state.collectRange;
+	state.tabs = lastAction?.tabs ?? [];
 
 	elements.rangeSelect.value = state.collectRange;
 	elements.formatSelect.value = state.format;
 
-	updateDetailUrlList(data.lastAction);
-	updateCompactUrlList(data.lastAction);
+	updateDetailUrlList(lastAction);
+	updateCompactUrlList(lastAction);
 
-	showStatus(data.lastAction);
+	showStatus(lastAction);
 }
 
 /* ==========================================================================
@@ -226,6 +231,8 @@ function clearStatusLabels() {
 
 /**
  * 詳細表示用のテキストUIを更新する。
+ *
+ * @param {Object} [data] アクション状態データ。
  */
 function updateDetailUrlList(data) {
 	if (!elements.urlList)
@@ -236,12 +243,14 @@ function updateDetailUrlList(data) {
 
 /**
  * コンパクト表示用のテキストUIを更新する。
+ *
+ * @param {Object} [data] アクション状態データ。
  */
 function updateCompactUrlList(data) {
 	if (!elements.compactUrlList)
 		return;
 
-	const count = data?.tabs.length;
+	const count = data?.tabs?.length ?? 0;
 
 	if (count === 1 && data?.collectRange === "current") {
 		elements.compactUrlList.textContent =
@@ -254,9 +263,11 @@ function updateCompactUrlList(data) {
 
 /**
  * 現在の表示モード状態に応じて詳細表示とコンパクト表示のUIを切り替える。
+ *
+ * @param {string} displayMode 表示モード。
  */
-function switchDisplayMode() {
-	const compact = state.displayMode === "compact";
+function applyDisplayMode(displayMode) {
+	const compact = displayMode === "compact";
 
 	// HTMLに状態を記録
 	document.body.classList.toggle("compact", compact);
@@ -329,15 +340,16 @@ async function onFormatSelectChanged() {
  * @returns {Promise<void>} 保存と反映の完了時に解決する Promise。
  */
 async function onModeButtonToggled() {
-	state.displayMode = state.displayMode === "detail"
+	const displayMode = state.displayMode === "detail"
 		? "compact"
 		: "detail";
+
+	state.displayMode = displayMode;
+	applyDisplayMode(displayMode);
 
 	await chrome.storage.local.set({
 		displayMode: state.displayMode
 	});
-
-	switchDisplayMode();
 }
 
 /* イベント登録 */

@@ -24,8 +24,8 @@ import { formatUrlListText } from "./core.js";
  * @property {string} format 出力フォーマット。
  * @property {CollectedTab[]} tabs 収集したタブ一覧。
  * @property {string} text 生成した文字列。
- * @property {string} message
- * @property {boolean} ok
+ * @property {string} message 表示用メッセージ。
+ * @property {boolean} ok 実行結果。
  */
 
 /**
@@ -110,11 +110,13 @@ async function collectUrls(collectRange, format, copy = false) {
 		const text = formatUrlListText(data.tabs, format);
 
 		const actionState = {
+			id: crypto.randomUUID(),	// 実行ごとにポップアップを更新するために必要
 			collectRange,
 			format,
 			tabs: data.tabs,
 			text,
-			status: null,
+			ok: true,
+			message: "",
 		};
 
 		if (copy) {
@@ -130,6 +132,7 @@ async function collectUrls(collectRange, format, copy = false) {
 			actionState.message = message;
 		} else {
 			message = `Collected ${formatTabCount(data.tabs.length)}.`;
+			actionState.message = message;
 		}
 
 		// 収集設定を記録する
