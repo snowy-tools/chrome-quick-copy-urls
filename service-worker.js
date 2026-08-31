@@ -3,7 +3,7 @@
  * 開いているタブのURL収集、クリップボードコピー、状態永続化をまとめて処理する。
  */
 
-import { formatTabListText } from "./core.js";
+import { formatUrlListText } from "./core.js";
 
 /**
  * @typedef {Object} CollectedTab
@@ -16,8 +16,6 @@ import { formatTabListText } from "./core.js";
  * @typedef {Object} ActionStatus
  * @property {boolean} ok 実行が成功したかどうか。
  * @property {string} message 表示用メッセージ。
- * @property {number} count 対象のタブ数。
- * @property {number} time 実行時刻（Unix ミリ秒）。
  */
 
 /**
@@ -26,7 +24,8 @@ import { formatTabListText } from "./core.js";
  * @property {string} format 出力フォーマット。
  * @property {CollectedTab[]} tabs 収集したタブ一覧。
  * @property {string} text 生成した文字列。
- * @property {ActionStatus | null} status 最後の状態。
+ * @property {string} message
+ * @property {boolean} ok
  */
 
 /**
@@ -89,6 +88,8 @@ function onRuntimeMessage(message, sender, sendResponse) {
 		message.format,
 		shouldCopy,
 	).then(sendResponse);
+
+	return true;
 }
 
 /**
@@ -96,17 +97,17 @@ function onRuntimeMessage(message, sender, sendResponse) {
  *
  * @param {string} collectRange 収集範囲。
  * @param {string} format 文字列出力フォーマット。
- * @param {bool} copy コピーを行うかどうか。
+ * @param {boolean} copy コピーを行うかどうか。
  * @returns {Promise<{ ok: boolean, message: string, count: number, tabs: CollectedTab[], text: string }>} 実行結果。
  */
-async function collectUrls(collectRange, format, copy=false) {
+async function collectUrls(collectRange, format, copy = false) {
 	try {
 		let isSuccess = true;
 		let message = null;
 
 		// URLリストを収集し、テキストに変換
 		const data = await collectTabs(collectRange);
-		const text = formatTabListText(data.tabs, format);
+		const text = formatUrlListText(data.tabs, format);
 
 		const actionState = {
 			collectRange,
@@ -121,15 +122,12 @@ async function collectUrls(collectRange, format, copy=false) {
 			const copyResult = await copyToClipboard(text);
 
 			isSuccess = copyResult.ok;
-			const message = isSuccess
+			message = isSuccess
 				? `Copied ${formatTabCount(data.tabs.length)}.`
 				: (copyResult.error || "Copy failed.");
-			actionState.status = {
-				ok: isSuccess,
-				message,
-				count: data.tabs.length,
-				time: Date.now(),
-			};
+
+			actionState.ok = isSuccess;
+			actionState.message = message;
 		} else {
 			message = `Collected ${formatTabCount(data.tabs.length)}.`;
 		}
@@ -248,20 +246,12 @@ async function ensureOffscreenDocument() {
  * 最後の動作設定と処理結果をストレージへ保存する。
  * このデータはポップアップ側から参照され、UI表示に利用される。
  *
- * @param {{ collectRange: string, format: string, tabs: CollectedTab[], text: string, status?: ActionStatus | null }} params 保存するアクション情報。
+ * @param {PersistedAction} actionState 保存するアクション情報。
  * @returns {Promise<void>} 保存完了時に解決する Promise。
  */
-async function persistActionState({ collectRange, format, tabs, text, status }) {
+async function persistActionState(actionState) {
 	await chrome.storage.local.set({
-		lastAction: {
-			id: crypto.randomUUID(),
-			collectRange,
-			format,
-			tabs,
-			text,
-			requestedAt: Date.now()
-		},
-		lastStatus: status ?? null
+		lastAction: actionState
 	});
 }
 
@@ -283,12 +273,8 @@ async function handleCollectionError(collectRange, format, error) {
 		format,
 		tabs: [],
 		text: "",
-		status: {
-			ok: false,
-			message: `URL retrieval failed: ${message}`,
-			count: 0,
-			time: Date.now()
-		}
+		ok: false,
+		message: `URL retrieval failed: ${message}`,
 	});
 
 	return {

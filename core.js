@@ -5,7 +5,7 @@
  * @param {string} format 出力形式（"url" または "title-url"）。
  * @returns {string} 生成した文字列。
  */
-export function formatTabListText(tabs, format) {
+export function formatUrlListText(tabs, format) {
 	const isTitleUrl = format === "title-url";
 
 	return tabs
