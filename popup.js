@@ -34,15 +34,9 @@ const state = {
  * DOM要素の参照を保持するオブジェクト。
  */
 const elements = {
-	rangeSelect: /** @type {HTMLSelectElement} */ (
-		document.getElementById("rangeSelect")
-	),
-	formatSelect: /** @type {HTMLSelectElement} */ (
-		document.getElementById("formatSelect")
-	),
-	urlList: /** @type {HTMLTextAreaElement} */ (
-		document.getElementById("urlList")
-	),
+	rangeSelect: /** @type {HTMLSelectElement} */ document.getElementById("rangeSelect"),
+	formatSelect: /** @type {HTMLSelectElement} */ document.getElementById("formatSelect"),
+	urlList: /** @type {HTMLTextAreaElement} */ document.getElementById("urlList"),
 	statusLabel: document.getElementById("statusLabel"),
 	summaryLabel: document.getElementById("summaryLabel"),
 	compactValue: document.getElementById("compactValue"),
@@ -56,7 +50,6 @@ const elements = {
 
 /**
  * ポップアップが読み込まれた直後に初期化を行う。
- * 保存済みの設定と直近のアクション結果を復元して UI を初期化する。
  *
  * @param {Event} event DOMContentLoaded イベント。
  */
@@ -72,17 +65,18 @@ function onInitialLoaded(event) {
 async function initialize() {
 	const saved = await getStoredSettings();
 
-	// UIを更新
-	syncConditionUi(saved);
+	loadSettingsIntoState(saved);
+	syncDropdownUiWithState();
 
 	if (saved.lastAction?.tabs) {
-		applyActionToState(saved.lastAction);
+		loadActionIntoState(saved.lastAction);
+		syncTextareaUiWithState(saved.lastAction.text);
 		showStatus(saved.lastStatus);
 	} else {
-		await regenerate(false);
+		await executeUrlCollection(false);
 	}
 
-	applyMode();
+	syncDisplayModeUi();
 }
 
 /**
@@ -98,21 +92,21 @@ function onStorageChanged(changes, areaName) {
 	if (!("lastAction" in changes || "lastStatus" in changes))
 		return;
 
-	applyStoredState();
+	reloadStateFromStorage();
 }
 
 /**
  * 再生成ボタン押下時に対象URLを再収集する。
  */
 function onRefreshButtonClicked() {
-	refreshUrlList(false);
+	executeUrlCollection(false);
 }
 
 /**
  * コピーボタン押下時に URL を再収集してすぐコピーする。
  */
 function onCopyButtonClicked() {
-	refreshUrlList(true);
+	executeUrlCollection(true);
 }
 
 /**
@@ -127,7 +121,7 @@ async function onRangeSelectChanged() {
 		collectRange: state.collectRange
 	});
 
-	await refreshUrlList(false);
+	await executeUrlCollection(false);
 }
 
 /**
@@ -137,7 +131,7 @@ async function onRangeSelectChanged() {
  */
 async function onFormatSelectChanged() {
 	state.format = elements.formatSelect.value;
-	elements.urlList.value = formatTabListText(state.tabs, state.format);
+	syncTextareaUiWithState();
 
 	await chrome.storage.local.set({
 		format: state.format
@@ -158,30 +152,32 @@ async function onModeButtonToggled() {
 		displayMode: state.displayMode
 	});
 
-	applyMode();
+	syncDisplayModeUi();
 }
 
 /**
- * storage の変更を受け取り、UI と内部 state を同一の状態へ揃える。
+ * storage の変更を受け取り、内部 state を更新して UI へ反映する。
  *
  * @returns {Promise<void>} 更新反映完了時に解決する Promise。
  */
-async function applyStoredState() {
+async function reloadStateFromStorage() {
 	const saved = await getStoredSettings();
 
-	syncConditionUi(saved);
+	loadSettingsIntoState(saved);
+	syncDropdownUiWithState();
 
 	if (saved.lastAction?.tabs) {
-		applyActionToState(saved.lastAction);
+		loadActionIntoState(saved.lastAction);
+		syncTextareaUiWithState(saved.lastAction.text);
 	} else {
 		state.tabs = [];
-		elements.urlList.value = "";
+		syncTextareaUiWithState("");
 	}
 
 	showStatus(saved.lastStatus);
-	updateSummary();
-	updateCompactValue();
-	applyMode();
+	updateSummaryUi();
+	updateCompactViewUi();
+	syncDisplayModeUi();
 }
 
 /**
@@ -190,10 +186,9 @@ async function applyStoredState() {
  * @param {boolean} [shouldCopy=false] コピーもあわせて実行するかどうか。
  * @returns {Promise<void>} 再生成完了時に解決する Promise。
  */
-async function refreshUrlList(shouldCopy = false) {
+async function executeUrlCollection(shouldCopy = false) {
 	clearStatus();
 
-	// バックグラウンドでのURL収集 (およびコピー) をトリガーする
 	const response = await chrome.runtime.sendMessage({
 		type: shouldCopy ? "collect-and-copy" : "collect",
 		collectRange: state.collectRange,
@@ -201,7 +196,7 @@ async function refreshUrlList(shouldCopy = false) {
 	});
 
 	state.tabs = response?.tabs ?? [];
-	elements.urlList.value = response?.text ?? formatTabListText(state.tabs, state.format);
+	syncTextareaUiWithState(response?.text);
 
 	if (response?.ok) {
 		showStatus({
@@ -226,13 +221,7 @@ async function refreshUrlList(shouldCopy = false) {
 /**
  * 保存された動作設定と最後のアクション状態を取得する。
  *
- * @returns {Promise<{
- * 	displayMode: string,
- * 	format: string,
- * 	collectRange: string,
- * 	lastAction: any,
- * 	lastStatus: any
- * }>} ストレージから復元した値。
+ * @returns {Promise<Object>} ストレージから復元した値。
  */
 function getStoredSettings() {
 	return chrome.storage.local.get({
@@ -244,51 +233,58 @@ function getStoredSettings() {
 	});
 }
 
-/**
- * storage の設定値を現在の UI に反映する。
- *
- * @param {{
- * 	displayMode?: string,
- * 	format?: string,
- * 	collectRange?: string,
- * 	lastAction?: { tabs?: TabEntry[] },
- * 	lastStatus?: any
- * }} saved 保存済みの設定値。
- */
-function syncConditionUi(saved) {
-	state.displayMode = saved.displayMode;
-	state.format = saved.format;
-	state.collectRange = saved.collectRange;
-	state.tabs = saved.lastAction?.tabs ?? state.tabs;
+/* ==========================================================================
+   State 更新用の関数群（DOM操作を行わず、内部データのみを更新する）
+   ========================================================================== */
 
-	valuesToControls();
+/**
+ * storage の設定値を現在の state に読み込む。
+ *
+ * @param {Object} saved 保存済みの設定値。
+ */
+function loadSettingsIntoState(saved) {
+	state.displayMode = saved.displayMode ?? state.displayMode;
+	state.format = saved.format ?? state.format;
+	state.collectRange = saved.collectRange ?? state.collectRange;
+	state.tabs = saved.lastAction?.tabs ?? state.tabs;
 }
 
 /**
- * 最後に実行したアクション情報を state と UI の入力欄に反映する。
+ * 最後に実行したアクション情報を state に読み込む。
  *
- * @param {{
- * 	tabs?: TabEntry[],
- * 	collectRange?: string,
- * 	format?: string,
- * 	text?: string
- * }} action 実行済みアクション。
+ * @param {Object} action 実行済みアクション。
  */
-function applyActionToState(action) {
+function loadActionIntoState(action) {
 	state.tabs = action.tabs ?? [];
 	state.collectRange = action.collectRange || state.collectRange;
 	state.format = action.format || state.format;
+}
 
-	valuesToControls();
-	elements.urlList.value = action.text ?? formatTabListText(state.tabs, state.format);
+/* ==========================================================================
+   UI 更新用の関数群（State のデータを DOM に反映する）
+   ========================================================================== */
+
+/**
+ * state の値をドロップダウン（select）に反映させる。
+ */
+function syncDropdownUiWithState() {
+	elements.rangeSelect.value = state.collectRange;
+	elements.formatSelect.value = state.format;
 }
 
 /**
- * state と select の値を同一にする。
+ * テキストエリアの値を更新する。オーバーライド用のテキストがあればそれを優先する。
+ *
+ * @param {string|null} [overrideText=null] 明示的に指定するテキスト。
  */
-function valuesToControls() {
-	elements.rangeSelect.value = state.collectRange;
-	elements.formatSelect.value = state.format;
+function syncTextareaUiWithState(overrideText = null) {
+	if (overrideText !== null) {
+		elements.urlList.value = overrideText;
+
+		return;
+	}
+
+	elements.urlList.value = formatTabListText(state.tabs, state.format);
 }
 
 /**
@@ -299,6 +295,7 @@ function valuesToControls() {
 function showStatus(data) {
 	if (!data?.message) {
 		clearStatus();
+
 		return;
 	}
 
@@ -314,8 +311,8 @@ function showStatus(data) {
 		node.classList.add("flash");
 	}
 
-	updateSummary(data.count ?? state.tabs.length);
-	updateCompactValue();
+	updateSummaryUi(data.count ?? state.tabs.length);
+	updateCompactViewUi();
 }
 
 /**
@@ -333,11 +330,11 @@ function clearStatus() {
 }
 
 /**
- * 収集件数の概要文を更新する。
+ * 収集件数の概要文UIを更新する。
  *
  * @param {number} [count=state.tabs.length] 表示する件数。
  */
-function updateSummary(count = state.tabs.length) {
+function updateSummaryUi(count = state.tabs.length) {
 	if (!elements.summaryLabel)
 		return;
 
@@ -346,9 +343,9 @@ function updateSummary(count = state.tabs.length) {
 }
 
 /**
- * コンパクト表示用の値を更新する。
+ * コンパクト表示用のテキストUIを更新する。
  */
-function updateCompactValue() {
+function updateCompactViewUi() {
 	if (!elements.compactValue)
 		return;
 
@@ -366,9 +363,9 @@ function updateCompactValue() {
 }
 
 /**
- * 現在の表示モードに応じて詳細表示とコンパクト表示を切り替える。
+ * 現在の表示モード状態に応じて詳細表示とコンパクト表示のUIを切り替える。
  */
-function applyMode() {
+function syncDisplayModeUi() {
 	const compact = state.displayMode === "compact";
 
 	document.body.classList.toggle("compact", compact);
@@ -385,8 +382,8 @@ function applyMode() {
 			: "Switch to compact view";
 	}
 
-	updateSummary();
-	updateCompactValue();
+	updateSummaryUi();
+	updateCompactViewUi();
 }
 
 /* イベント登録 */
