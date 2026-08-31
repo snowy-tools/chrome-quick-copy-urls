@@ -3,6 +3,8 @@
  * 保存済み設定、最終アクション結果、表示モードを統合し、収集したURLの一覧やコピー状態を表示する。
  */
 
+import { formatTabListText } from "./core.js";
+
 /**
  * @typedef {Object} TabEntry
  * @property {number|null} id タブID。
@@ -135,7 +137,7 @@ async function onRangeSelectChanged() {
  */
 async function onFormatSelectChanged() {
 	state.format = elements.formatSelect.value;
-	elements.urlList.value = buildText();
+	elements.urlList.value = formatTabListText(state.tabs, state.format);
 
 	await chrome.storage.local.set({
 		format: state.format
@@ -199,7 +201,7 @@ async function refreshUrlList(shouldCopy = false) {
 	});
 
 	state.tabs = response?.tabs ?? [];
-	elements.urlList.value = response?.text ?? buildText();
+	elements.urlList.value = response?.text ?? formatTabListText(state.tabs, state.format);
 
 	if (response?.ok) {
 		showStatus({
@@ -278,7 +280,7 @@ function applyActionToState(action) {
 	state.format = action.format || state.format;
 
 	valuesToControls();
-	elements.urlList.value = action.text ?? buildText();
+	elements.urlList.value = action.text ?? formatTabListText(state.tabs, state.format);
 }
 
 /**
@@ -287,22 +289,6 @@ function applyActionToState(action) {
 function valuesToControls() {
 	elements.rangeSelect.value = state.collectRange;
 	elements.formatSelect.value = state.format;
-}
-
-/**
- * 現在の state に基づいてテキストを生成する。
- *
- * @returns {string} 生成した URL 一覧テキスト。
- */
-function buildText() {
-	const isTitleUrl = state.format === "title-url";
-
-	return tabs
-		.map((tab) => isTitleUrl
-			? `${tab.title}\t${tab.url}\n`
-			: `${tab.url}\n`
-		)
-		.join("");
 }
 
 /**

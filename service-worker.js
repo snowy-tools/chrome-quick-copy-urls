@@ -3,6 +3,8 @@
  * 開いているタブのURL収集、クリップボードコピー、状態永続化をまとめて処理する。
  */
 
+import { formatTabListText } from "./core.js";
+
 /**
  * @typedef {Object} CollectedTab
  * @property {number|null} id タブID.
@@ -325,24 +327,6 @@ function commandToRange(command) {
  */
 function formatTabCount(count) {
 	return `${count} URL${count === 1 ? "" : "s"}`;
-}
-
-/**
- * タブ情報から表示用のテキストを生成する。
- *
- * @param {CollectedTab[]} tabs タブ一覧。
- * @param {string} format 出力形式（"url" または "title-url"）。
- * @returns {string} 生成した文字列。
- */
-function formatTabListText(tabs, format) {
-	const isTitleUrl = format === "title-url";
-
-	return tabs
-		.map((tab) => isTitleUrl
-			? `${tab.title}\t${tab.url}\n`
-			: `${tab.url}\n`
-		)
-		.join("");
 }
 
 /**
