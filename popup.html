@@ -9,21 +9,17 @@
 <body>
 	<main id="app">
 		<header class="header">
-			<div>
-				<p id="summaryLabel">No URLs collected.</p>
-			</div>
-			<button id="modeButton" class="icon-button" type="button" title="Switch display mode" aria-label="Switch display mode">↔</button>
+			<p id="statusLabel" class="status" role="status" aria-live="polite">No URLs collected.</p>
+			<button id="modeButton" class="icon-button" type="button" title="Switch to detailed view" aria-label="Switch display mode" aria-expanded="false">▼</button>
 		</header>
 
-		<section id="detailView">
-			<textarea id="urlList" spellcheck="false" aria-label="Collected URLs"></textarea>
+		<textarea id="urlList" spellcheck="false" aria-label="Collected URLs"></textarea>
 
+		<section id="detailControls">
 			<div class="actions">
 				<button id="refreshButton" type="button">Refresh</button>
 				<button id="copyButton" class="primary" type="button">Copy</button>
 			</div>
-
-			<p id="statusLabel" class="status" role="status" aria-live="polite"></p>
 
 			<div class="toolbar">
 				<label>
@@ -42,11 +38,6 @@
 					</select>
 				</label>
 			</div>
-		</section>
-
-		<section id="compactView" hidden>
-			<div id="compactUrlList" class="compact-value"></div>
-			<p id="compactStatusLabel" class="status" role="status" aria-live="polite"></p>
 		</section>
 	</main>
 

@@ -38,11 +38,7 @@ const elements = {
 	formatSelect: /** @type {HTMLSelectElement} */ document.getElementById("formatSelect"),
 	urlList: /** @type {HTMLTextAreaElement} */ document.getElementById("urlList"),
 	statusLabel: document.getElementById("statusLabel"),
-	summaryLabel: document.getElementById("summaryLabel"),
-	compactUrlList: document.getElementById("compactUrlList"),
-	compactStatusLabel: document.getElementById("compactStatusLabel"),
-	detailView: document.getElementById("detailView"),
-	compactView: document.getElementById("compactView"),
+	detailControls: document.getElementById("detailControls"),
 	modeButton: document.getElementById("modeButton"),
 	refreshButton: document.getElementById("refreshButton"),
 	copyButton: document.getElementById("copyButton")
@@ -149,16 +145,14 @@ async function getStoredSettings() {
 async function loadStateFromStorage(data) {
 	const lastAction = data.lastAction;
 
-	state.format = lastAction.format ?? state.format;
-	state.collectRange = lastAction.collectRange ?? state.collectRange;
+	state.format = lastAction?.format ?? state.format;
+	state.collectRange = lastAction?.collectRange ?? state.collectRange;
 	state.tabs = lastAction?.tabs ?? [];
 
 	elements.rangeSelect.value = state.collectRange;
 	elements.formatSelect.value = state.format;
 
-	updateDetailUrlList(lastAction);
-	updateCompactUrlList(lastAction);
-
+	updateUrlList(lastAction);
 	showStatus(lastAction);
 }
 
@@ -167,76 +161,49 @@ async function loadStateFromStorage(data) {
    ========================================================================== */
 
 /**
- * ステータスメッセージを表示し、必要な要約とコンパクト表示も更新する。
+ * ステータスメッセージを表示し、指定がない場合は要約を表示する。
  *
  * @param {{ ok?: boolean, message?: string, count?: number } | undefined} status 表示するステータス情報。
  */
 function showStatus(status) {
-	// statusLabel にメッセージを表示する
-	if (!status?.message) {
+	if (!elements.statusLabel)
+		return;
+
+	const count = status?.count ?? state.tabs.length;
+
+	if (status?.message) {
+		elements.statusLabel.textContent = status.message;
+		elements.statusLabel.className = `status ${status.ok ? "ok" : "error"}`;
+
+		elements.statusLabel.classList.remove("flash");
+		void elements.statusLabel.offsetWidth;
+		elements.statusLabel.classList.add("flash");
+	} else {
 		clearStatusLabels();
-		return;
-	}
-
-	updateStatusLabels(status);
-
-	// summaryLabelに要約を表示する
-	updateSummaryUi(status.count ?? state.tabs.length);
-}
-
-/**
- * ステータス表示を更新する
- *
- * @param {{ ok?: boolean, message?: string } | undefined} status 表示するステータス情報。
- */
-function updateStatusLabels(status) {
-	for (const node of [elements.statusLabel, elements.compactStatusLabel]) {
-		if (!node)
-			continue;
-
-		node.textContent = status.message;
-		node.className = `status ${status.ok ? "ok" : "error"}`;
-
-		node.classList.remove("flash");
-		void node.offsetWidth;		// レイアウトを再計算
-		node.classList.add("flash");
+		elements.statusLabel.textContent = count > 0
+			? `${count} URL${count === 1 ? "" : "s"} collected`
+			: "No URLs collected.";
 	}
 }
 
 /**
- * 収集件数の概要文UIを更新する。
- *
- * @param {number} [count=state.tabs.length] 表示する件数。
- */
-function updateSummaryUi(count = state.tabs.length) {
-	if (!elements.summaryLabel)
-		return;
-
-	elements.summaryLabel.textContent =
-		`${count} URL${count === 1 ? "" : "s"} collected`;
-}
-
-/**
- * ステータス表示をクリアする。
+ * ステータス表示をクリアし、初期状態に戻す。
  */
 function clearStatusLabels() {
-	// ステータスラベルをクリアする
-	for (const node of [elements.statusLabel, elements.compactStatusLabel]) {
-		if (!node)
-			continue;
+	if (!elements.statusLabel)
+		return;
 
-		node.textContent = "";
-		node.className = "status";
-		node.classList.remove("flash");
-	}
+	elements.statusLabel.textContent = "";
+	elements.statusLabel.className = "status";
+	elements.statusLabel.classList.remove("flash");
 }
 
 /**
- * 詳細表示用のテキストUIを更新する。
+ * URL一覧のテキストUIを更新する。
  *
  * @param {Object} [data] アクション状態データ。
  */
-function updateDetailUrlList(data) {
+function updateUrlList(data) {
 	if (!elements.urlList)
 		return;
 
@@ -244,50 +211,23 @@ function updateDetailUrlList(data) {
 }
 
 /**
- * コンパクト表示用のテキストUIを更新する。
- *
- * @param {Object} [data] アクション状態データ。
- */
-function updateCompactUrlList(data) {
-	if (!elements.compactUrlList)
-		return;
-
-	const count = data?.tabs?.length ?? 0;
-
-	if (count === 1 && data?.collectRange === "current") {
-		elements.compactUrlList.textContent =
-			data?.text ?? "No URL";
-	} else {
-		elements.compactUrlList.textContent =
-			`${count} URL${count === 1 ? "" : "s"}`;
-	}
-}
-
-/**
- * 現在の表示モード状態に応じて詳細表示とコンパクト表示のUIを切り替える。
+ * 現在の表示モード状態に応じて UI の表示形式を切り替える。
  *
  * @param {string} displayMode 表示モード。
  */
 function applyDisplayMode(displayMode) {
 	const compact = displayMode === "compact";
 
-	// HTMLに状態を記録
 	document.body.classList.toggle("compact", compact);
 
-	// 表示するパネルを切り替える
-	if (elements.detailView)
-		elements.detailView.hidden = compact;
-	if (elements.compactView)
-		elements.compactView.hidden = !compact;
-
-	// 切り替えボタンの状態を変える
 	if (elements.modeButton) {
+		elements.modeButton.textContent = compact ? "▼" : "▲";
 		elements.modeButton.title = compact
 			? "Switch to detailed view"
 			: "Switch to compact view";
+		elements.modeButton.setAttribute("aria-expanded", String(!compact));
 	}
 }
-
 
 /* ==========================================================================
    UI イベントハンドラ
