@@ -34,8 +34,8 @@ const state = {
  * DOM要素の参照を保持するオブジェクト。
  */
 const elements = {
-	rangeSelect: /** @type {HTMLSelectElement} */ document.getElementById("rangeSelect"),
-	formatSelect: /** @type {HTMLSelectElement} */ document.getElementById("formatSelect"),
+	rangeSelect: /** @type {HTMLFieldSetElement} */ document.getElementById("rangeSelect"),
+	formatSelect: /** @type {HTMLFieldSetElement} */ document.getElementById("formatSelect"),
 	urlList: /** @type {HTMLTextAreaElement} */ document.getElementById("urlList"),
 	statusLabel: document.getElementById("statusLabel"),
 	detailControls: document.getElementById("detailControls"),
@@ -85,16 +85,15 @@ async function onStorageChanged(changes, areaName) {
 }
 
 /**
- * 現在の収集範囲とフォーマットに基づいて URL を再生成し、必要ならコピーも実行する。
+ * 現在の収集範囲とフォーマットに基づいて URL を再生成する。
  *
- * @param {boolean} [shouldCopy=false] コピーもあわせて実行するかどうか。
  * @returns {Promise<void>} 再生成完了時に解決する Promise。
  */
-async function executeUrlCollection(shouldCopy = false) {
+async function executeUrlCollection() {
 	clearStatusLabels();
 
 	const response = await chrome.runtime.sendMessage({
-		type: shouldCopy ? "collect-and-copy" : "collect",
+		type: "collect",
 		collectRange: state.collectRange,
 		format: state.format,
 	});
@@ -111,9 +110,7 @@ async function executeUrlCollection(shouldCopy = false) {
 	} else {
 		showStatus({
 			ok: false,
-			message: response?.message || (shouldCopy
-				? "URL retrieval/copy failed."
-				: "URL retrieval failed."),
+			message: response?.message || "URL retrieval failed.",
 			count: response?.count ?? 0,
 		});
 	}
@@ -149,8 +146,13 @@ async function loadStateFromStorage(data) {
 	state.collectRange = lastAction?.collectRange ?? state.collectRange;
 	state.tabs = lastAction?.tabs ?? [];
 
-	elements.rangeSelect.value = state.collectRange;
-	elements.formatSelect.value = state.format;
+	const rangeRadio = document.querySelector(`input[name="range"][value="${state.collectRange}"]`);
+	if (rangeRadio)
+		rangeRadio.checked = true;
+
+	const formatRadio = document.querySelector(`input[name="format"][value="${state.format}"]`);
+	if (formatRadio)
+		formatRadio.checked = true;
 
 	updateUrlList(lastAction);
 	showStatus(lastAction);
@@ -237,38 +239,71 @@ function applyDisplayMode(displayMode) {
  * 再生成ボタン押下時に対象URLを再収集する。
  */
 function onRefreshButtonClicked() {
-	executeUrlCollection(false);
+	executeUrlCollection();
 }
 
 /**
- * コピーボタン押下時に URL を再収集してすぐコピーする。
+ * textareaの内容をクリップボードにコピーし、結果をステータスに表示する。
  */
-function onCopyButtonClicked() {
-	executeUrlCollection(true);
+async function onCopyButtonClicked() {
+	const text = elements.urlList.value;
+	const itemCount = text
+		.split(/\r?\n|\n?\r/)                     // 行ごとに分割
+		.filter(line => line.trim() !== "") // 空白を除去して空でない行だけ残す
+		.length;
+
+	if (!text) {
+		showStatus({
+			ok: false,
+			message: "No URLs to copy."
+		});
+		return;
+	}
+
+	try {
+		await navigator.clipboard.writeText(text);
+		showStatus({
+			ok: true,
+			message: `Copied ${itemCount} URL${itemCount === 1 ? "" : "s"}.`
+		});
+	} catch (error) {
+		showStatus({
+			ok: false,
+			message: "Copy failed."
+		});
+	}
 }
 
 /**
  * 収集範囲の選択が変わったときに state と storage を更新し、一覧を再生成する。
  *
+ * @param {Event} event changeイベント。
  * @returns {Promise<void>} 更新完了時に解決する Promise。
  */
-async function onRangeSelectChanged() {
-	state.collectRange = elements.rangeSelect.value;
+async function onRangeSelectChanged(event) {
+	if (event.target.name !== "range")
+		return;
+
+	state.collectRange = event.target.value;
 
 	await chrome.storage.local.set({
 		collectRange: state.collectRange
 	});
 
-	await executeUrlCollection(false);
+	await executeUrlCollection();
 }
 
 /**
  * 出力フォーマットの選択が変わったときに state と UI を更新する。
  *
+ * @param {Event} event changeイベント。
  * @returns {Promise<void>} 更新完了時に解決する Promise。
  */
-async function onFormatSelectChanged() {
-	state.format = elements.formatSelect.value;
+async function onFormatSelectChanged(event) {
+	if (event.target.name !== "format")
+		return;
+
+	state.format = event.target.value;
 	elements.urlList.value = formatUrlListText(state.tabs, state.format);
 
 	await chrome.storage.local.set({

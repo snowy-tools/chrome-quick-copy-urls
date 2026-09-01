@@ -45,31 +45,40 @@ p {
 	margin-top: 12px;
 }
 
-label {
-	display: grid;
-	gap: 4px;
+fieldset {
+	margin: 0;
+	padding: 8px 8px;
+	border: none;
+	border-radius: 7px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+legend {
 	font-size: 14px;
 	color: #5f6368;
 }
 
-select,
+label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 14px;
+	cursor: pointer;
+}
+
 button,
 textarea {
 	font: inherit;
 	font-size: 14px;
 }
 
-select,
 button {
 	border: 1px solid #dadce0;
 	border-radius: 7px;
 	background: #fff;
 	color: #202124;
-}
-
-select {
-	height: 32px;
-	padding: 0 8px;
 }
 
 textarea {
@@ -176,16 +185,21 @@ body.compact #detailControls {
 		background: #202124;
 	}
 
-	label,
+	legend,
 	.status {
 		color: #9aa0a6;
 	}
 
-	select,
+	fieldset,
 	button,
 	.icon-button,
 	textarea {
 		border-color: #5f6368;
+	}
+
+	button,
+	.icon-button,
+	textarea {
 		background: #292a2d;
 		color: #e8eaed;
 	}

@@ -22,21 +22,17 @@
 			</div>
 
 			<div class="toolbar">
-				<label>
-					Range
-					<select id="rangeSelect">
-						<option value="current">Active tab</option>
-						<option value="window">Current window</option>
-						<option value="all">All tabs</option>
-					</select>
-				</label>
-				<label>
-					Format
-					<select id="formatSelect">
-						<option value="url">URL</option>
-						<option value="title-url">Title + URL: {title}\t{url}\n</option>
-					</select>
-				</label>
+				<fieldset id="rangeSelect">
+					<legend>Range:</legend>
+					<label><input type="radio" name="range" value="current"> Active tab</label>
+					<label><input type="radio" name="range" value="window"> Current window</label>
+					<label><input type="radio" name="range" value="all"> All tabs</label>
+				</fieldset>
+				<fieldset id="formatSelect">
+					<legend>Format:</legend>
+					<label><input type="radio" name="format" value="url"> URL</label>
+					<label><input type="radio" name="format" value="title-url"> Title + URL: {title}\t{url}\n</label>
+				</fieldset>
 			</div>
 		</section>
 	</main>
