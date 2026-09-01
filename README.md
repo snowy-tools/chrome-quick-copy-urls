@@ -1,39 +1,45 @@
 # Quick URL Copy
 
-Chrome extension for collecting and copying tab URLs.
+Chrome extension to collect and copy URLs from open tabs. The popup displays collected URLs and status, and provides controls to change the collection range and URL format interactively
 
 ## Features
 
-- Copy the active tab URL.
-- Copy URLs from all tabs in the current window.
-- Copy URLs from all Chrome tabs.
-- Toolbar button opens a popup without copying.
-- Keyboard shortcuts execute copy operations and open the popup with the result.
-- Detailed and compact popup modes.
-- Select output format:
-	- `URL`
-	- `Title + URL` (tab-separated)
-- Refresh the collected text and copy it again from the detailed popup.
-- Displays the number of collected/copied URLs.
-- Displays URL retrieval and clipboard-copy failures.
+- Collect and copy urls from tabs with the range:
+  - only active tab
+  - all tabs in the current window
+  - all open tabs
+- Collected URLs and success/error messages are shown in popup.
+- Switchable display modes of popup window:
+  - Detailed:
+  - Compact:
+- Selectable output formats:
+  - `URL`
+  - `Title + URL` (tab-separated)
+- Able to retry URL collection and URL copy interactively in popup.
+- Keyboard shortcuts to perform URL collection and copy instantly.
+- No host permissions are requested.
 
-## Default shortcuts
+## Shortcuts
 
-- `Alt+Shift+1` — active tab
-- `Alt+Shift+2` — current window
-- `Alt+Shift+3` — all tabs
+- Copy active tab URL
+- Copy URLs from tabs in the current window
+- Copy URLs from all tabs
 
 Shortcuts can be changed at `chrome://extensions/shortcuts`.
 
 ## Install for local development
 
-1. Open `chrome://extensions/`.
-2. Enable **Developer mode**.
-3. Click **Load unpacked**.
-4. Select this directory.
+1. Clone repository:
+```
+git clone https://github.com/snowflake36u/quick-url-copy
+```
+2. Open `chrome://extensions/`.
+3. Enable **Developer mode**.
+4. Click **Load unpacked**.
+5. Select the `quick-url-copy` project directory.
 
 ## Notes
 
-The extension uses Manifest V3 and the `offscreen` API for clipboard writes initiated by keyboard shortcuts. No website host permission is requested.
-
-The extension's toolbar button uses Chrome's action popup directly; it collects the active tab and does not copy automatically.
+- The extension uses Manifest V3.
+- The manifest requests these permissions: `tabs`, `storage`, `clipboardWrite` and `offscreen`.
+- Settings such as collecting tab range and URL format are persisted in the storage and reused for subsequent operations.
