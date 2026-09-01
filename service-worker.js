@@ -29,6 +29,15 @@ import { formatUrlListText } from "./core.js";
  */
 
 /**
+ * @typedef {Object} LocalStorageData
+ * @property {string} displayMode ポップアップ画面の表示形式。
+ * @property {string} format コピーする文字列の出力フォーマット。
+ * @property {string} collectRange 前回実行時に指定されたタブ収集範囲。
+ * @property {"current"|"window"|"all"|"last"} actionButtonRange アクションボタン押下時のタブ収集範囲のグローバル設定。
+ * @property {PersistedAction} lastAction 最後に実行された処理の状態と結果。
+ */
+
+/**
  * @type {{ displayMode: string, format: string, collectRange: string }}
  */
 const DEFAULT_SETTINGS = {

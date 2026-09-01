@@ -286,6 +286,7 @@ async function onRangeSelectChanged(event) {
 
 	state.collectRange = event.target.value;
 
+	// 設定を記録する
 	await chrome.storage.local.set({
 		collectRange: state.collectRange
 	});
@@ -304,11 +305,13 @@ async function onFormatSelectChanged(event) {
 		return;
 
 	state.format = event.target.value;
-	elements.urlList.value = formatUrlListText(state.tabs, state.format);
 
+	// 設定を記録する
 	await chrome.storage.local.set({
 		format: state.format
 	});
+
+	elements.urlList.value = formatUrlListText(state.tabs, state.format);
 }
 
 /**
