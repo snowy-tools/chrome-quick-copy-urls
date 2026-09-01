@@ -53,6 +53,23 @@ async function initializeDefaultSettings() {
 }
 
 /**
+ * 拡張機能のアクションボタンがクリックされたときに、保存されている設定を用いて
+ * URLの収集とコピーを実行し、ポップアップを開く。
+ *
+ * @param {chrome.tabs.Tab} tab 現在のタブ情報。
+ * @returns {Promise<void>} 処理完了時に解決する Promise。
+ */
+async function onActionClicked(tab) {
+	const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
+
+	const collectRange = settings.collectRange ?? DEFAULT_SETTINGS.collectRange;
+	const format = settings.format ?? DEFAULT_SETTINGS.format;
+
+	await collectUrls(collectRange, format, true);
+	await openPopup();
+}
+
+/**
  * Chrome のショートカットから呼ばれた場合に、指定範囲のURLを収集してコピーし、最後の実行結果を保存する。
  *
  * @param {string} command 実行されたコマンド名。
@@ -335,5 +352,6 @@ async function openPopup() {
 
 /* イベント登録 */
 chrome.runtime.onInstalled.addListener(initializeDefaultSettings);
+chrome.action.onClicked.addListener(onActionClicked);
 chrome.commands.onCommand.addListener(onCommand);
 chrome.runtime.onMessage.addListener(onRuntimeMessage);
