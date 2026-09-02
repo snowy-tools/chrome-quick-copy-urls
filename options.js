@@ -3,16 +3,16 @@
  * ユーザーが選択したグローバル設定を storage.local に保存し、バックグラウンドでの収集範囲決定に利用させる。
  */
 
-const rangeSelect = document.getElementById("actionButtonRange");
+const rangeSelect = document.getElementById("actionButtonCollectRange");
 
 /**
  * 画面ロード時に現在の設定値を読み込み、UIへ復元する。
  */
 document.addEventListener("DOMContentLoaded", async () => {
-	const settings = await chrome.storage.local.get({ actionButtonRange: "current" });
+	const settings = await chrome.storage.local.get({ actionButtonCollectRange: "current" });
 
 	if (rangeSelect)
-		rangeSelect.value = settings.actionButtonRange;
+		rangeSelect.value = settings.actionButtonCollectRange;
 });
 
 /**
@@ -22,6 +22,6 @@ rangeSelect?.addEventListener("change", async (event) => {
 	const target = event.target;
 
 	await chrome.storage.local.set({
-		actionButtonRange: target.value
+		actionButtonCollectRange: target.value
 	});
 });

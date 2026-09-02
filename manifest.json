@@ -15,8 +15,7 @@
 		"type": "module"
 	},
 	"action": {
-		"default_title": "Quick URL Copy",
-		"default_popup": "popup.html"
+		"default_title": "Quick URL Copy"
 	},
 	"options_ui": {
 		"page": "options.html",
