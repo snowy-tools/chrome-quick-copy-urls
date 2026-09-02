@@ -31,11 +31,15 @@ import { formatUrlListText } from "./core.js";
  */
 
 /**
- * @typedef {Object} LocalStorageData
+ * @typedef {Object} UserPreferences
  * @property {string} displayMode ポップアップ画面の表示形式。
- * @property {string} format コピーする文字列の出力フォーマット。
- * @property {string} collectRange 前回実行時に指定されたタブ収集範囲。
  * @property {"current"|"window"|"all"|"last"} actionButtonCollectRange アクションボタン押下時のタブ収集範囲のグローバル設定。
+ */
+
+/**
+ * @typedef {Object} LastCondition
+ * @property {string} format コピーする文字列の出力フォーマット（履歴）。
+ * @property {string} collectRange 前回実行時に指定されたタブ収集範囲（履歴）。
  */
 
 /**
@@ -46,28 +50,38 @@ import { formatUrlListText } from "./core.js";
 const actionCache = new Map();
 
 /**
- * @type {{ displayMode: string, format: string, collectRange: string, actionButtonCollectRange: string }}
+ * @type {UserPreferences}
  */
-const DEFAULT_SETTINGS = {
+const DEFAULT_PREFERENCES = {
 	displayMode: "detail",
-	format: "url",
-	collectRange: "current",
 	actionButtonCollectRange: "current",
 };
 
 /**
- * 初回インストールまたは更新時に、未定義の保存設定だけをデフォルト値で補完する。
- *
- * @returns {Promise<void>} 設定補完完了時に解決する Promise。
+ * @type {LastCondition}
  */
-async function initializeDefaultSettings() {
-	const current = await chrome.storage.local.get(DEFAULT_SETTINGS);
+const DEFAULT_LAST_CONDITION = {
+	format: "url",
+	collectRange: "current",
+};
+
+/**
+ * 初回インストールまたは更新時に、未定義の保存データだけをデフォルト値で補完する。
+ * ユーザー設定と前回の動作状態の両方をストレージに確保する。
+ *
+ * @returns {Promise<void>} 補完完了時に解決する Promise。
+ */
+async function initializeStorageDefaults() {
+	const current = await chrome.storage.local.get({
+		...DEFAULT_PREFERENCES,
+		...DEFAULT_LAST_CONDITION,
+	});
 
 	await chrome.storage.local.set({
-		displayMode: current.displayMode ?? DEFAULT_SETTINGS.displayMode,
-		format: current.format ?? DEFAULT_SETTINGS.format,
-		collectRange: current.collectRange ?? DEFAULT_SETTINGS.collectRange,
-		actionButtonCollectRange: current.actionButtonCollectRange ?? DEFAULT_SETTINGS.actionButtonCollectRange,
+		displayMode: current.displayMode ?? DEFAULT_PREFERENCES.displayMode,
+		actionButtonCollectRange: current.actionButtonCollectRange ?? DEFAULT_PREFERENCES.actionButtonCollectRange,
+		format: current.format ?? DEFAULT_LAST_CONDITION.format,
+		collectRange: current.collectRange ?? DEFAULT_LAST_CONDITION.collectRange,
 	});
 }
 
@@ -79,15 +93,18 @@ async function initializeDefaultSettings() {
  * @returns {Promise<void>} 処理完了時に解決する Promise。
  */
 async function onActionClicked(tab) {
-	const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
+	const data = await chrome.storage.local.get({
+		...DEFAULT_PREFERENCES,
+		...DEFAULT_LAST_CONDITION,
+	});
 
 	// グローバル設定に従って収集範囲を決定する
-	let collectRange = settings.actionButtonCollectRange ?? DEFAULT_SETTINGS.actionButtonCollectRange;
+	let collectRange = data.actionButtonCollectRange ?? DEFAULT_PREFERENCES.actionButtonCollectRange;
 
 	if (collectRange === "last")
-		collectRange = settings.collectRange ?? DEFAULT_SETTINGS.collectRange;
+		collectRange = data.collectRange ?? DEFAULT_LAST_CONDITION.collectRange;
 
-	const format = settings.format ?? DEFAULT_SETTINGS.format;
+	const format = data.format ?? DEFAULT_LAST_CONDITION.format;
 
 	await collectUrls(collectRange, format, true, tab.id);
 	await openPopup();
@@ -107,9 +124,9 @@ async function onCommand(command, tab) {
 		// 収集範囲が指定されていない場合、何もせず終了する
 		return;
 
-	// 前回の設定を取得・引き継ぐ
-	const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
-	const format = settings.format ?? DEFAULT_SETTINGS.format;
+	// 前回の履歴データを取得・引き継ぐ
+	const data = await chrome.storage.local.get(DEFAULT_LAST_CONDITION);
+	const format = data.format ?? DEFAULT_LAST_CONDITION.format;
 
 	// コマンド実行時の対象タブIDを特定する
 	let targetTabId = tab?.id ?? null;
@@ -168,6 +185,12 @@ function onRuntimeMessage(message, sender, sendResponse) {
  */
 async function collectUrls(collectRange, format, copy = false, targetTabId = null) {
 	try {
+		// 次回の実行時に状態を引き継ぐため、今回使用したパラメータを記録する
+		await chrome.storage.local.set({
+			collectRange,
+			format,
+		});
+
 		let isSuccess = true;
 		let message = null;
 
@@ -447,7 +470,7 @@ async function openPopup() {
 }
 
 /* イベント登録 */
-chrome.runtime.onInstalled.addListener(initializeDefaultSettings);
+chrome.runtime.onInstalled.addListener(initializeStorageDefaults);
 chrome.action.onClicked.addListener(onActionClicked);
 chrome.commands.onCommand.addListener(onCommand);
 chrome.runtime.onMessage.addListener(onRuntimeMessage);

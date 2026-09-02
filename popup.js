@@ -1,6 +1,6 @@
 /**
  * @fileoverview ポップアップ画面のUI状態を管理する。
- * 保存済み設定、自身が属するタブの直近のアクション結果、表示モードを統合し、
+ * 保存済み動作条件、自身が属するタブの直近のアクション結果、表示モードを統合し、
  * 収集したURLの一覧やコピー状態を表示する。
  */
 
@@ -63,7 +63,7 @@ function onInitialLoaded(event) {
  * @returns {Promise<void>} 初期化完了時に解決する Promise。
  */
 async function initialize() {
-	const data = await getStoredSettings();
+	const data = await getStoredData();
 
 	const displayMode = data.displayMode;
 	state.displayMode = displayMode;
@@ -128,11 +128,12 @@ async function executeUrlCollection() {
 }
 
 /**
- * 保存された動作設定を取得する。
+ * 前回の動作状態や表示モードをストレージから取得する。
+ * UIの初期表示やデータ復元のベースとして使用する。
  *
  * @returns {Promise<Object>} ストレージから復元した値。
  */
-async function getStoredSettings() {
+async function getStoredData() {
 	return await chrome.storage.local.get({
 		displayMode: "detail",
 		format: "url",
@@ -294,11 +295,6 @@ async function onRangeSelectChanged(event) {
 
 	state.collectRange = event.target.value;
 
-	// 設定を記録する
-	await chrome.storage.local.set({
-		collectRange: state.collectRange,
-	});
-
 	await executeUrlCollection();
 }
 
@@ -314,7 +310,7 @@ async function onFormatSelectChanged(event) {
 
 	state.format = event.target.value;
 
-	// 設定を記録する
+	// 動作条件履歴を記録する
 	await chrome.storage.local.set({
 		format: state.format,
 	});
