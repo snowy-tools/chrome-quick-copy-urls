@@ -4,28 +4,26 @@ Chrome extension to collect and copy URLs from open tabs. The popup displays col
 
 ## Features
 
-- Collect and copy urls from tabs with the range:
-  - only active tab
-  - all tabs in the current window
-  - all open tabs
-- Collected URLs and success/error messages are shown in popup.
-- Switchable display modes of popup window:
-  - Detailed:
-  - Compact:
-- Selectable output formats:
-  - `URL`
-  - `Title + URL` (tab-separated)
-- Able to retry URL collection and URL copy interactively in popup.
-- Keyboard shortcuts to perform URL collection and copy instantly.
-- No host permissions are requested.
-
-## Shortcuts
-
-- Copy active tab URL
-- Copy URLs from tabs in the current window
-- Copy URLs from all tabs
-
-Shortcuts can be changed at `chrome://extensions/shortcuts`.
+- **Flexible URL collection range:**
+  - Active tab only
+  - All tabs in the current window
+  - All open tabs
+- **Interactive popup controls:**
+  - Collected URLs and status messages are displayed in the popup
+  - Refresh button to recollect URLs with current settings
+  - Copy button to copy URLs to clipboard 
+  - Change collection range and output format on the fly
+- **Togglable display modes:**
+  - Detailed: Shows controls for range and format selection
+  - Compact: Minimal view showing only URLs and status
+- **Output formats:**
+  - `URL`: One URL per line
+  - `Title + URL`: Tab-separated title and URL (format: `{title}\t{url}`)
+- **Keyboard shortcuts:**
+  - Support copy commands for each URL collection range
+- **Settings page:**
+  - Configure default behavior when clicking the extension button
+- **No host permissions required** - The extension uses Chrome's tabs API without requesting access to page content
 
 ## Install for local development
 
@@ -40,6 +38,7 @@ git clone https://github.com/snowflake36u/quick-url-copy
 
 ## Notes
 
-- The extension uses Manifest V3.
-- The manifest requests these permissions: `tabs`, `storage`, `clipboardWrite` and `offscreen`.
-- Settings such as collecting tab range and URL format are persisted in the storage and reused for subsequent operations.
+- The extension uses Manifest V3
+- Uses offscreen document for clipboard operations (required for Manifest V3 security model)
+- Requests these permissions: `tabs`, `storage`, `clipboardWrite`, and `offscreen`
+- Settings are persisted in Chrome storage and reused for subsequent operations
