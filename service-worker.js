@@ -469,8 +469,19 @@ async function openPopup() {
 	}
 }
 
+/**
+ * タブが閉じられた際にキャッシュを破棄する。
+ * メモリリークを防止し、不要な状態データが残り続けるのを防ぐ。
+ *
+ * @param {number} tabId 閉じられたタブのID。
+ */
+function onTabRemoved(tabId) {
+	actionCache.delete(tabId);
+}
+
 /* イベント登録 */
 chrome.runtime.onInstalled.addListener(initializeStorageDefaults);
 chrome.action.onClicked.addListener(onActionClicked);
 chrome.commands.onCommand.addListener(onCommand);
 chrome.runtime.onMessage.addListener(onRuntimeMessage);
+chrome.tabs.onRemoved.addListener(onTabRemoved);
