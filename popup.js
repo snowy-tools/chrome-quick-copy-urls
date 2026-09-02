@@ -31,6 +31,8 @@ const state = {
 	format: "url",
 	displayMode: "detail",
 	tabId: null,
+	filterDuplicateUrls: true,
+	filterSpecialUrls: true,
 };
 
 /**
@@ -39,6 +41,7 @@ const state = {
 const elements = {
 	rangeSelect: /** @type {HTMLFieldSetElement|null} */ null,
 	formatSelect: /** @type {HTMLFieldSetElement|null} */ null,
+	filterSelect: /** @type {HTMLFieldSetElement|null} */ null,
 	urlList: /** @type {HTMLTextAreaElement|null} */ null,
 	statusLabel: /** @type {HTMLElement|null} */ null,
 	detailControls: /** @type {HTMLElement|null} */ null,
@@ -51,6 +54,7 @@ function bindDomElements() {
 	// Fetch DOM elements after DOMContentLoaded
 	elements.rangeSelect = /** @type {HTMLFieldSetElement|null} */ document.getElementById("rangeSelect");
 	elements.formatSelect = /** @type {HTMLFieldSetElement|null} */ document.getElementById("formatSelect");
+	elements.filterSelect = /** @type {HTMLFieldSetElement|null} */ document.getElementById("filterSelect");
 	elements.urlList = /** @type {HTMLTextAreaElement|null} */ document.getElementById("urlList");
 	elements.statusLabel = /** @type {HTMLElement|null} */ document.getElementById("statusLabel");
 	elements.detailControls = /** @type {HTMLElement|null} */ document.getElementById("detailControls");
@@ -63,6 +67,8 @@ function bindDomElements() {
 		elements.rangeSelect.addEventListener("change", onRangeSelectChanged);
 	if (elements.formatSelect)
 		elements.formatSelect.addEventListener("change", onFormatSelectChanged);
+	if (elements.filterSelect)
+		elements.filterSelect.addEventListener("change", onFilterSelectChanged);
 	if (elements.refreshButton)
 		elements.refreshButton.addEventListener("click", onRefreshButtonClicked);
 	if (elements.copyButton)
@@ -94,11 +100,21 @@ async function initialize() {
 
 	const displayMode = data.displayMode;
 	state.displayMode = displayMode;
+	state.filterDuplicateUrls = data.filterDuplicateUrls ?? true;
+	state.filterSpecialUrls = data.filterSpecialUrls ?? true;
 
 	// Bind DOM elements and register UI event listeners now that DOM is ready
 	bindDomElements();
 
 	applyDisplayMode(displayMode);
+
+	const duplicateCheckbox = document.querySelector('input[name="filterDuplicateUrls"]');
+	if (duplicateCheckbox)
+		duplicateCheckbox.checked = state.filterDuplicateUrls;
+
+	const specialCheckbox = document.querySelector('input[name="filterSpecialUrls"]');
+	if (specialCheckbox)
+		specialCheckbox.checked = state.filterSpecialUrls;
 
 	// ポップアップが存在するウィンドウのアクティブタブを取得する
 	const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -138,6 +154,8 @@ async function executeUrlCollection() {
 			collectRange: state.collectRange,
 			format: state.format,
 			tabId: state.tabId,
+			filterDuplicateUrls: state.filterDuplicateUrls,
+			filterSpecialUrls: state.filterSpecialUrls,
 		});
 
 		state.tabs = response?.tabs ?? [];
@@ -177,6 +195,8 @@ async function getStoredData() {
 		displayMode: "detail",
 		format: "url",
 		collectRange: "current",
+		filterDuplicateUrls: true,
+		filterSpecialUrls: true,
 	});
 }
 
@@ -192,6 +212,8 @@ async function getStoredData() {
 function loadStateFromAction(actionData) {
 	state.format = actionData.format ?? state.format;
 	state.collectRange = actionData.collectRange ?? state.collectRange;
+	state.filterDuplicateUrls = actionData.filterDuplicateUrls ?? state.filterDuplicateUrls;
+	state.filterSpecialUrls = actionData.filterSpecialUrls ?? state.filterSpecialUrls;
 	state.tabs = actionData.tabs ?? [];
 
 	const rangeRadio = document.querySelector(`input[name="range"][value="${state.collectRange}"]`);
@@ -201,6 +223,14 @@ function loadStateFromAction(actionData) {
 	const formatRadio = document.querySelector(`input[name="format"][value="${state.format}"]`);
 	if (formatRadio)
 		formatRadio.checked = true;
+
+	const duplicateCheckbox = document.querySelector('input[name="filterDuplicateUrls"]');
+	if (duplicateCheckbox)
+		duplicateCheckbox.checked = state.filterDuplicateUrls;
+
+	const specialCheckbox = document.querySelector('input[name="filterSpecialUrls"]');
+	if (specialCheckbox)
+		specialCheckbox.checked = state.filterSpecialUrls;
 
 	updateUrlList(actionData);
 	showStatus(actionData);
@@ -346,6 +376,31 @@ async function onRangeSelectChanged(event) {
 	});
 
 	await executeUrlCollection();
+}
+
+/**
+ * フィルタリング設定の選択が変わったときに state と storage を更新し、一覧を再生成する。
+ *
+ * @param {Event} event changeイベント。
+ * @returns {Promise<void>} 更新完了時に解決する Promise。
+ */
+async function onFilterSelectChanged(event) {
+	if (event.target.name === "filterDuplicateUrls") {
+		state.filterDuplicateUrls = event.target.checked;
+		await chrome.storage.local.set({
+			filterDuplicateUrls: state.filterDuplicateUrls,
+		});
+		await executeUrlCollection();
+		return;
+	}
+
+	if (event.target.name === "filterSpecialUrls") {
+		state.filterSpecialUrls = event.target.checked;
+		await chrome.storage.local.set({
+			filterSpecialUrls: state.filterSpecialUrls,
+		});
+		await executeUrlCollection();
+	}
 }
 
 /**

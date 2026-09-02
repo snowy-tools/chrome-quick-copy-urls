@@ -55,6 +55,8 @@ const actionCache = new Map();
 const DEFAULT_PREFERENCES = {
 	displayMode: "detail",
 	actionButtonCollectRange: "current",
+	filterDuplicateUrls: true,
+	filterSpecialUrls: true,
 };
 
 /**
@@ -63,6 +65,8 @@ const DEFAULT_PREFERENCES = {
 const DEFAULT_LAST_CONDITION = {
 	format: "url",
 	collectRange: "current",
+	filterDuplicateUrls: true,
+	filterSpecialUrls: true,
 };
 
 /**
@@ -82,6 +86,8 @@ async function initializeStorageDefaults() {
 		actionButtonCollectRange: current.actionButtonCollectRange ?? DEFAULT_PREFERENCES.actionButtonCollectRange,
 		format: current.format ?? DEFAULT_LAST_CONDITION.format,
 		collectRange: current.collectRange ?? DEFAULT_LAST_CONDITION.collectRange,
+		filterDuplicateUrls: current.filterDuplicateUrls ?? DEFAULT_PREFERENCES.filterDuplicateUrls,
+		filterSpecialUrls: current.filterSpecialUrls ?? DEFAULT_PREFERENCES.filterSpecialUrls,
 	});
 }
 
@@ -105,8 +111,13 @@ async function onActionClicked(tab) {
 		collectRange = data.collectRange ?? DEFAULT_LAST_CONDITION.collectRange;
 
 	const format = data.format ?? DEFAULT_LAST_CONDITION.format;
+	const filterDuplicateUrls = data.filterDuplicateUrls ?? DEFAULT_LAST_CONDITION.filterDuplicateUrls;
+	const filterSpecialUrls = data.filterSpecialUrls ?? DEFAULT_LAST_CONDITION.filterSpecialUrls;
 
-	await collectUrls(collectRange, format, true, tab.id);
+	await collectUrls(collectRange, format, true, tab.id, {
+		filterDuplicateUrls,
+		filterSpecialUrls,
+	});
 	await openPopup();
 }
 
@@ -127,6 +138,8 @@ async function onCommand(command, tab) {
 	// 前回の履歴データを取得・引き継ぐ
 	const data = await chrome.storage.local.get(DEFAULT_LAST_CONDITION);
 	const format = data.format ?? DEFAULT_LAST_CONDITION.format;
+	const filterDuplicateUrls = data.filterDuplicateUrls ?? DEFAULT_LAST_CONDITION.filterDuplicateUrls;
+	const filterSpecialUrls = data.filterSpecialUrls ?? DEFAULT_LAST_CONDITION.filterSpecialUrls;
 
 	// コマンド実行時の対象タブIDを特定する
 	let targetTabId = tab?.id ?? null;
@@ -141,7 +154,10 @@ async function onCommand(command, tab) {
 			targetTabId = tabs[0].id;
 	}
 
-	await collectUrls(collectRange, format, true, targetTabId);
+	await collectUrls(collectRange, format, true, targetTabId, {
+		filterDuplicateUrls,
+		filterSpecialUrls,
+	});
 	await openPopup();
 }
 
@@ -172,6 +188,10 @@ function onRuntimeMessage(message, sender, sendResponse) {
 		message.format,
 		shouldCopy,
 		message.tabId,
+		{
+			filterDuplicateUrls: message.filterDuplicateUrls,
+			filterSpecialUrls: message.filterSpecialUrls,
+		},
 	).then(sendResponse, (error) => {
 		sendResponse({
 			ok: false,
@@ -195,10 +215,12 @@ function onRuntimeMessage(message, sender, sendResponse) {
  * @param {number|null} targetTabId 処理対象とするタブID。
  * @returns {Promise<{ ok: boolean, message: string, count: number, tabs: CollectedTab[], text: string, id: string }>} 実行結果。
  */
-async function collectUrls(collectRange, format, copy = false, targetTabId = null) {
+async function collectUrls(collectRange, format, copy = false, targetTabId = null, filterOptions = {}) {
 	const normalizedRange = typeof collectRange === "string" && collectRange === "same-group"
 		? "group"
 		: collectRange;
+	const filterDuplicateUrls = filterOptions.filterDuplicateUrls ?? true;
+	const filterSpecialUrls = filterOptions.filterSpecialUrls ?? true;
 
 	try {
 		if (typeof collectRange !== "string" || typeof format !== "string")
@@ -208,19 +230,26 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 		await chrome.storage.local.set({
 			collectRange: normalizedRange,
 			format,
+			filterDuplicateUrls,
+			filterSpecialUrls,
 		});
 
 		let isSuccess = true;
 		let message = null;
 
 		// URLリストを収集し、テキストに変換
-		const data = await collectTabs(normalizedRange, targetTabId);
+		const data = await collectTabs(normalizedRange, targetTabId, {
+			filterDuplicateUrls,
+			filterSpecialUrls,
+		});
 		const text = formatUrlListText(data.tabs, format);
 
 		const actionState = {
 			id: crypto.randomUUID(),
 			collectRange: normalizedRange,
 			format,
+			filterDuplicateUrls,
+			filterSpecialUrls,
 			tabs: data.tabs,
 			text,
 			ok: true,
@@ -267,8 +296,10 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
  * @param {number|null} targetTabId 基準とするタブID。
  * @returns {Promise<{ tabs: CollectedTab[] }>} 正規化済みのタブ一覧。
  */
-async function collectTabs(collectRange, targetTabId) {
+async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 	const normalizedRange = collectRange === "same-group" ? "group" : collectRange;
+	const filterDuplicateUrls = filterOptions.filterDuplicateUrls ?? true;
+	const filterSpecialUrls = filterOptions.filterSpecialUrls ?? true;
 	let tabs;
 	let targetTab = null;
 
@@ -324,7 +355,10 @@ async function collectTabs(collectRange, targetTabId) {
 	}
 
 	return {
-		tabs: normalizeAndFilterTabs(tabs),
+		tabs: normalizeAndFilterTabs(tabs, {
+			filterDuplicateUrls,
+			filterSpecialUrls,
+		}),
 	};
 }
 
@@ -332,9 +366,12 @@ async function collectTabs(collectRange, targetTabId) {
  * 収集対象のタブを正規化し、重複や特殊URLを除外する。
  *
  * @param {chrome.tabs.Tab[]} tabs タブ一覧。
+ * @param {{ filterDuplicateUrls?: boolean, filterSpecialUrls?: boolean }} [options] 除去オプション。
  * @returns {CollectedTab[]} 正規化済みタブ一覧。
  */
-function normalizeAndFilterTabs(tabs) {
+function normalizeAndFilterTabs(tabs, options = {}) {
+	const filterDuplicateUrls = options.filterDuplicateUrls ?? true;
+	const filterSpecialUrls = options.filterSpecialUrls ?? true;
 	const seenUrls = new Set();
 
 	return tabs
@@ -345,18 +382,20 @@ function normalizeAndFilterTabs(tabs) {
 			url: tab.url.trim(),
 		}))
 		.filter(({ url }) => {
-			if (isSpecialUrl(url))
+			if (filterSpecialUrls && isSpecialUrl(url))
 				return false;
 
 			const normalizedUrl = normalizeUrl(url);
 			if (!normalizedUrl)
 				return false;
 
-			const key = normalizedUrl.toLowerCase();
-			if (seenUrls.has(key))
-				return false;
+			if (filterDuplicateUrls) {
+				const key = normalizedUrl.toLowerCase();
+				if (seenUrls.has(key))
+					return false;
+				seenUrls.add(key);
+			}
 
-			seenUrls.add(key);
 			return true;
 		})
 		.map(({ id, title, url }) => ({
@@ -380,7 +419,10 @@ function isSpecialUrl(value) {
 	const lower = url.toLowerCase();
 	if (lower === "about:blank" || lower.startsWith("about:"))
 		return true;
-	if (lower.startsWith("chrome://") || lower.startsWith("chrome-extension://") || lower.startsWith("devtools://") || lower.startsWith("edge://"))
+	if (lower.startsWith("chrome://")
+		|| lower.startsWith("chrome-extension://")
+		|| lower.startsWith("devtools://")
+		|| lower.startsWith("edge://"))
 		return true;
 	if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("file:"))
 		return true;
@@ -541,7 +583,6 @@ function commandToRange(command) {
 		case "copy-window-tabs":
 			return "window";
 		case "copy-group-tabs":
-		case "copy-same-group-tabs":
 			return "group";
 		case "copy-all-tabs":
 			return "all";
