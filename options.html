@@ -1,0 +1,26 @@
+<!-- options.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Quick Url Copy Settings</title>
+	<style>
+		body { font-family: sans-serif; padding: 20px; }
+		.setting-group { margin-bottom: 15px; }
+		label { display: block; margin-bottom: 5px; font-weight: bold; }
+		select { padding: 5px; font-size: 14px; }
+	</style>
+</head>
+<body>
+	<div class="setting-group">
+		<label for="actionButtonRange">Action Button Collect Range</label>
+		<select id="actionButtonRange">
+			<option value="current">Current Tab</option>
+			<option value="window">Tabs in Current Window</option>
+			<option value="all">All Tabs</option>
+			<option value="last">Same as Last Time</option>
+		</select>
+	</div>
+	<script src="options.js"></script>
+</body>
+</html>
