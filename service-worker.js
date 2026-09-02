@@ -1,6 +1,6 @@
 /**
  * @fileoverview バックグラウンドスクリプト。拡張機能のコマンド要求やポップアップからのメッセージを受け取り、
- * 開いているタブのURL収集、クリップボードコピー、状態永続化をまとめて処理する。
+ * 開いているタブのURL収集、クリップボードコピー処理をまとめて担う。
  * 複数のウィンドウやタブで並行して動作できるよう、操作履歴は操作対象のタブIDごとに管理する。
  */
 
@@ -36,8 +36,14 @@ import { formatUrlListText } from "./core.js";
  * @property {string} format コピーする文字列の出力フォーマット。
  * @property {string} collectRange 前回実行時に指定されたタブ収集範囲。
  * @property {"current"|"window"|"all"|"last"} actionButtonCollectRange アクションボタン押下時のタブ収集範囲のグローバル設定。
- * @property {Record<number, PersistedAction>} tabActions タブIDごとの処理結果。複数ウィンドウやタブでの並行操作時の競合を防ぐために用いる。
  */
+
+/**
+ * メモリ上で各タブの処理結果を一時的に保持するキャッシュ。
+ * ポップアップが情報を要求した際に最新の状態を返すために使用する。
+ * @type {Map<number, PersistedAction>}
+ */
+const actionCache = new Map();
 
 /**
  * @type {{ displayMode: string, format: string, collectRange: string, actionButtonCollectRange: string }}
@@ -103,7 +109,6 @@ async function onCommand(command, tab) {
 
 	// 前回の設定を取得・引き継ぐ
 	const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
-
 	const format = settings.format ?? DEFAULT_SETTINGS.format;
 
 	// コマンド実行時の対象タブIDを特定する
@@ -124,7 +129,7 @@ async function onCommand(command, tab) {
 }
 
 /**
- * ポップアップからの収集要求を受け取り、必要に応じてレスポンスを返す。
+ * ポップアップからの要求を受け取り、必要に応じてレスポンスを返す。
  *
  * @param {{ type?: string, collectRange?: string, format?: string, tabId?: number }} message 受信したメッセージ。
  * @param {unknown} sender 送信元情報。
@@ -132,20 +137,28 @@ async function onCommand(command, tab) {
  * @returns {boolean | void} 非同期応答を行う場合は true を返す。
  */
 function onRuntimeMessage(message, sender, sendResponse) {
-	const shouldCopy = message?.type === "collect-and-copy";
+	if (message?.type === "get-action-state") {
+		const actionState = actionCache.get(message.tabId);
 
-	collectUrls(
-		message.collectRange,
-		message.format,
-		shouldCopy,
-		message.tabId,
-	).then(sendResponse);
+		sendResponse(actionState || null);
 
-	return true;
+		return false;
+	} else {
+		const shouldCopy = message?.type === "collect-and-copy";
+
+		collectUrls(
+			message.collectRange,
+			message.format,
+			shouldCopy,
+			message.tabId,
+		).then(sendResponse);
+
+		return true;
+	}
 }
 
 /**
- * URL の収集を行い、動作履歴を対象タブIDに紐付けて記録する。
+ * URL の収集を行い、動作履歴を対象タブIDに紐付けてキャッシュに記録する。
  *
  * @param {string} collectRange 収集範囲。
  * @param {string} format 文字列出力フォーマット。
@@ -163,7 +176,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 		const text = formatUrlListText(data.tabs, format);
 
 		const actionState = {
-			id: crypto.randomUUID(),	// 実行ごとにポップアップを更新するために必要
+			id: crypto.randomUUID(),
 			collectRange,
 			format,
 			tabs: data.tabs,
@@ -189,7 +202,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 		}
 
 		if (targetTabId !== null)
-			await persistActionState(actionState, targetTabId);
+			cacheAndNotifyActionState(targetTabId, actionState);
 
 		return {
 			ok: isSuccess,
@@ -321,29 +334,26 @@ async function ensureOffscreenDocument() {
 }
 
 /**
- * 動作設定と処理結果をタブごとにストレージへ保存する。
- * このデータはポップアップ側から参照され、UI表示の同期に利用される。
+ * 処理結果をキャッシュに保存し、現在開いているポップアップへ状態の更新を通知する。
+ * ポップアップがバックグラウンドでの処理進行をリアルタイムに反映できるようにするために用いる。
  *
- * @param {PersistedAction} actionState 保存するアクション情報。
- * @param {number} targetTabId 対象とするタブID。
- * @returns {Promise<void>} 保存完了時に解決する Promise。
+ * @param {number} tabId 対象とするタブID。
+ * @param {PersistedAction} actionState 通知するアクションデータ。
  */
-async function persistActionState(actionState, targetTabId) {
-	if (targetTabId === null || targetTabId === undefined)
-		return;
+function cacheAndNotifyActionState(tabId, actionState) {
+	actionCache.set(tabId, actionState);
 
-	const data = await chrome.storage.local.get({ tabActions: {} });
-	const tabActions = data.tabActions;
-
-	tabActions[targetTabId] = actionState;
-
-	await chrome.storage.local.set({
-		tabActions,
+	chrome.runtime.sendMessage({
+		type: "action-state-updated",
+		tabId,
+		actionState,
+	}).catch(() => {
+		// ポップアップが閉じられているなど、受信者が存在しない場合に発生する例外を無視する
 	});
 }
 
 /**
- * 収集処理時の例外発生に伴うエラーログ保存と応答用オブジェクト作成を行う。
+ * 収集処理時の例外発生に伴うエラー情報をキャッシュし、応答用オブジェクトを作成する。
  *
  * @param {string} collectRange 収集範囲。
  * @param {string} format フォーマット。
@@ -358,7 +368,7 @@ async function handleCollectionError(collectRange, format, error, targetTabId) {
 
 	const id = crypto.randomUUID();
 
-	await persistActionState({
+	const actionState = {
 		id,
 		collectRange,
 		format,
@@ -366,7 +376,10 @@ async function handleCollectionError(collectRange, format, error, targetTabId) {
 		text: "",
 		ok: false,
 		message: `URL retrieval failed: ${message}`,
-	}, targetTabId);
+	};
+
+	if (targetTabId !== null)
+		cacheAndNotifyActionState(targetTabId, actionState);
 
 	return {
 		ok: false,

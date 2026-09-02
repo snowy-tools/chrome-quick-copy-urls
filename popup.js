@@ -20,7 +20,6 @@ import { formatUrlListText } from "./core.js";
  * @property {string} format 出力フォーマット。
  * @property {"detail" | "compact"} displayMode 表示モード。
  * @property {number|null} tabId ポップアップが表示されているタブのID。
- * @property {string|null} lastActionId 最後に処理したアクションのID。別の処理によるUIの二重更新を防ぐために用いる。
  */
 
 /**
@@ -32,11 +31,6 @@ const state = {
 	format: "url",
 	displayMode: "detail",
 	tabId: null,
-	// 最後に実行したアクションのID。二重描画を防ぐために必要。
-	// ポップアップ側からURLの再取得を行った場合、
-	// sendMessage()の戻り値による更新 -> chrome.storage.onChangedイベントによる更新
-	// というタイミングで2重にデータ更新してしまうことを防ぐ
-	lastActionId: null,
 };
 
 /**
@@ -63,7 +57,8 @@ function onInitialLoaded(event) {
 }
 
 /**
- * 自身が属するタブのIDを取得し、関連するアクション結果を復元して UI を初期化する。
+ * 自身が属するタブのIDを取得し、バックグラウンドから関連するアクション結果を
+ * 取得して UI を初期化する。
  *
  * @returns {Promise<void>} 初期化完了時に解決する Promise。
  */
@@ -80,7 +75,11 @@ async function initialize() {
 
 	state.tabId = tabs.length > 0 ? tabs[0].id : null;
 
-	const tabAction = data.tabActions?.[state.tabId];
+	// バックグラウンドプロセスに現在タブのアクション実行結果を問い合わせる
+	const tabAction = await chrome.runtime.sendMessage({
+		type: "get-action-state",
+		tabId: state.tabId,
+	});
 
 	if (tabAction) {
 		await loadStateFromAction(tabAction);
@@ -91,25 +90,6 @@ async function initialize() {
 			ok: false,
 			message: "No collection data found for this tab.",
 		});
-	}
-}
-
-/**
- * ストレージに保存された動作設定や自身が属するタブの実行結果をもとに UI を同期する。
- *
- * @param {Record<string, chrome.storage.StorageChange>} changes 変更されたストレージ項目。
- * @param {string} areaName 変更対象のストレージ領域。
- */
-async function onStorageChanged(changes, areaName) {
-	if (areaName !== "local")
-		return;
-
-	if ("tabActions" in changes) {
-		const newActions = changes.tabActions.newValue || {};
-		const myAction = newActions[state.tabId];
-
-		if (myAction && myAction.id !== state.lastActionId)
-			loadStateFromAction(myAction);
 	}
 }
 
@@ -128,10 +108,6 @@ async function executeUrlCollection() {
 		format: state.format,
 		tabId: state.tabId,
 	});
-
-	if (response?.id)
-		// 本更新をUIに反映済みとしてマークする
-		state.lastActionId = response.id;
 
 	state.tabs = response?.tabs ?? [];
 	elements.urlList.value = response?.text ?? "";
@@ -152,7 +128,7 @@ async function executeUrlCollection() {
 }
 
 /**
- * 保存された動作設定とタブごとのアクション状態を取得する。
+ * 保存された動作設定を取得する。
  *
  * @returns {Promise<Object>} ストレージから復元した値。
  */
@@ -161,7 +137,6 @@ async function getStoredSettings() {
 		displayMode: "detail",
 		format: "url",
 		collectRange: "current",
-		tabActions: {},
 	});
 }
 
@@ -170,12 +145,11 @@ async function getStoredSettings() {
    ========================================================================== */
 
 /**
- * storage またはメッセージの処理結果を現在の state に読み込む。
+ * メッセージの処理結果を現在の state に読み込む。
  *
  * @param {Object} actionData 復元するアクションデータ。
  */
 async function loadStateFromAction(actionData) {
-	state.lastActionId = actionData.id ?? state.lastActionId;
 	state.format = actionData.format ?? state.format;
 	state.collectRange = actionData.collectRange ?? state.collectRange;
 	state.tabs = actionData.tabs ?? [];
@@ -282,7 +256,7 @@ function onRefreshButtonClicked() {
 async function onCopyButtonClicked() {
 	const text = elements.urlList.value;
 	const itemCount = text
-		.split(/\r?\n|\n?\r/)                     // 行ごとに分割
+		.split(/\r?\n|\n?\r/)               // 行ごとに分割
 		.filter(line => line.trim() !== "") // 空白を除去して空でない行だけ残す
 		.length;
 
@@ -366,9 +340,22 @@ async function onModeButtonToggled() {
 	});
 }
 
+/**
+ * バックグラウンドから送信されたメッセージを受信し、状態の更新を UI に反映する。
+ *
+ * @param {Object} message 受信したメッセージ。
+ * @param {string} [message.type] メッセージの種別。
+ * @param {number} [message.tabId] アクション対象のタブID。
+ * @param {Object} [message.actionState] 更新する状態データ。
+ */
+function onRuntimeMessage(message) {
+	if (message.type === "action-state-updated" && message.tabId === state.tabId)
+		loadStateFromAction(message.actionState);
+}
+
 /* イベント登録 */
 document.addEventListener("DOMContentLoaded", onInitialLoaded);
-chrome.storage.onChanged.addListener(onStorageChanged);
+chrome.runtime.onMessage.addListener(onRuntimeMessage);
 
 elements.rangeSelect.addEventListener("change", onRangeSelectChanged);
 elements.formatSelect.addEventListener("change", onFormatSelectChanged);
