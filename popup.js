@@ -1,6 +1,7 @@
 /**
  * @fileoverview ポップアップ画面のUI状態を管理する。
- * 保存済み設定、最終アクション結果、表示モードを統合し、収集したURLの一覧やコピー状態を表示する。
+ * 保存済み設定、自身が属するタブの直近のアクション結果、表示モードを統合し、
+ * 収集したURLの一覧やコピー状態を表示する。
  */
 
 import { formatUrlListText } from "./core.js";
@@ -18,6 +19,8 @@ import { formatUrlListText } from "./core.js";
  * @property {string} collectRange 収集範囲。
  * @property {string} format 出力フォーマット。
  * @property {"detail" | "compact"} displayMode 表示モード。
+ * @property {number|null} tabId ポップアップが表示されているタブのID。
+ * @property {string|null} lastActionId 最後に処理したアクションのID。別の処理によるUIの二重更新を防ぐために用いる。
  */
 
 /**
@@ -27,7 +30,13 @@ const state = {
 	tabs: [],
 	collectRange: "current",
 	format: "url",
-	displayMode: "detail"
+	displayMode: "detail",
+	tabId: null,
+	// 最後に実行したアクションのID。二重描画を防ぐために必要。
+	// ポップアップ側からURLの再取得を行った場合、
+	// sendMessage()の戻り値による更新 -> chrome.storage.onChangedイベントによる更新
+	// というタイミングで2重にデータ更新してしまうことを防ぐ
+	lastActionId: null,
 };
 
 /**
@@ -41,7 +50,7 @@ const elements = {
 	detailControls: document.getElementById("detailControls"),
 	modeButton: document.getElementById("modeButton"),
 	refreshButton: document.getElementById("refreshButton"),
-	copyButton: document.getElementById("copyButton")
+	copyButton: document.getElementById("copyButton"),
 };
 
 /**
@@ -54,7 +63,7 @@ function onInitialLoaded(event) {
 }
 
 /**
- * 保存済みの設定と直近のアクション結果を復元して UI を初期化する。
+ * 自身が属するタブのIDを取得し、関連するアクション結果を復元して UI を初期化する。
  *
  * @returns {Promise<void>} 初期化完了時に解決する Promise。
  */
@@ -63,13 +72,30 @@ async function initialize() {
 
 	const displayMode = data.displayMode;
 	state.displayMode = displayMode;
+
 	applyDisplayMode(displayMode);
 
-	await loadStateFromStorage(data);
+	// ポップアップが存在するウィンドウのアクティブタブを取得する
+	const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+
+	state.tabId = tabs.length > 0 ? tabs[0].id : null;
+
+	const tabAction = data.tabActions?.[state.tabId];
+
+	if (tabAction) {
+		await loadStateFromAction(tabAction);
+	} else {
+		// 処理中のタブ切り替えなどの特殊な理由でデータが存在しない場合、
+		// 意図しない対象の自動収集を防ぐためにエラー状態とする
+		showStatus({
+			ok: false,
+			message: "No collection data found for this tab.",
+		});
+	}
 }
 
 /**
- * ストレージに保存された動作設定や実行結果をもとにUI を同期する。
+ * ストレージに保存された動作設定や自身が属するタブの実行結果をもとに UI を同期する。
  *
  * @param {Record<string, chrome.storage.StorageChange>} changes 変更されたストレージ項目。
  * @param {string} areaName 変更対象のストレージ領域。
@@ -78,14 +104,18 @@ async function onStorageChanged(changes, areaName) {
 	if (areaName !== "local")
 		return;
 
-	if ("lastAction" in changes) {
-		const data = await getStoredSettings();
-		loadStateFromStorage(data);
+	if ("tabActions" in changes) {
+		const newActions = changes.tabActions.newValue || {};
+		const myAction = newActions[state.tabId];
+
+		if (myAction && myAction.id !== state.lastActionId)
+			loadStateFromAction(myAction);
 	}
 }
 
 /**
  * 現在の収集範囲とフォーマットに基づいて URL を再生成する。
+ * 対象となるアクティブタブ等の判定基準として、現在のタブIDを含めて要求する。
  *
  * @returns {Promise<void>} 再生成完了時に解決する Promise。
  */
@@ -96,7 +126,12 @@ async function executeUrlCollection() {
 		type: "collect",
 		collectRange: state.collectRange,
 		format: state.format,
+		tabId: state.tabId,
 	});
+
+	if (response?.id)
+		// 本更新をUIに反映済みとしてマークする
+		state.lastActionId = response.id;
 
 	state.tabs = response?.tabs ?? [];
 	elements.urlList.value = response?.text ?? "";
@@ -117,7 +152,7 @@ async function executeUrlCollection() {
 }
 
 /**
- * 保存された動作設定と最後のアクション状態を取得する。
+ * 保存された動作設定とタブごとのアクション状態を取得する。
  *
  * @returns {Promise<Object>} ストレージから復元した値。
  */
@@ -126,7 +161,7 @@ async function getStoredSettings() {
 		displayMode: "detail",
 		format: "url",
 		collectRange: "current",
-		lastAction: null
+		tabActions: {},
 	});
 }
 
@@ -135,16 +170,15 @@ async function getStoredSettings() {
    ========================================================================== */
 
 /**
- * storage の設定値を現在の state に読み込む。
+ * storage またはメッセージの処理結果を現在の state に読み込む。
  *
- * @param {Object} data ストレージから取得したデータ。
+ * @param {Object} actionData 復元するアクションデータ。
  */
-async function loadStateFromStorage(data) {
-	const lastAction = data.lastAction;
-
-	state.format = lastAction?.format ?? state.format;
-	state.collectRange = lastAction?.collectRange ?? state.collectRange;
-	state.tabs = lastAction?.tabs ?? [];
+async function loadStateFromAction(actionData) {
+	state.lastActionId = actionData.id ?? state.lastActionId;
+	state.format = actionData.format ?? state.format;
+	state.collectRange = actionData.collectRange ?? state.collectRange;
+	state.tabs = actionData.tabs ?? [];
 
 	const rangeRadio = document.querySelector(`input[name="range"][value="${state.collectRange}"]`);
 	if (rangeRadio)
@@ -154,8 +188,8 @@ async function loadStateFromStorage(data) {
 	if (formatRadio)
 		formatRadio.checked = true;
 
-	updateUrlList(lastAction);
-	showStatus(lastAction);
+	updateUrlList(actionData);
+	showStatus(actionData);
 }
 
 /* ==========================================================================
@@ -255,7 +289,7 @@ async function onCopyButtonClicked() {
 	if (!text) {
 		showStatus({
 			ok: false,
-			message: "No URLs to copy."
+			message: "No URLs to copy.",
 		});
 		return;
 	}
@@ -264,12 +298,12 @@ async function onCopyButtonClicked() {
 		await navigator.clipboard.writeText(text);
 		showStatus({
 			ok: true,
-			message: `Copied ${itemCount} URL${itemCount === 1 ? "" : "s"}.`
+			message: `Copied ${itemCount} URL${itemCount === 1 ? "" : "s"}.`,
 		});
 	} catch (error) {
 		showStatus({
 			ok: false,
-			message: "Copy failed."
+			message: "Copy failed.",
 		});
 	}
 }
@@ -288,7 +322,7 @@ async function onRangeSelectChanged(event) {
 
 	// 設定を記録する
 	await chrome.storage.local.set({
-		collectRange: state.collectRange
+		collectRange: state.collectRange,
 	});
 
 	await executeUrlCollection();
@@ -308,7 +342,7 @@ async function onFormatSelectChanged(event) {
 
 	// 設定を記録する
 	await chrome.storage.local.set({
-		format: state.format
+		format: state.format,
 	});
 
 	elements.urlList.value = formatUrlListText(state.tabs, state.format);
@@ -328,7 +362,7 @@ async function onModeButtonToggled() {
 	applyDisplayMode(displayMode);
 
 	await chrome.storage.local.set({
-		displayMode: state.displayMode
+		displayMode: state.displayMode,
 	});
 }
 

@@ -1,6 +1,7 @@
 /**
  * @fileoverview バックグラウンドスクリプト。拡張機能のコマンド要求やポップアップからのメッセージを受け取り、
  * 開いているタブのURL収集、クリップボードコピー、状態永続化をまとめて処理する。
+ * 複数のウィンドウやタブで並行して動作できるよう、操作履歴は操作対象のタブIDごとに管理する。
  */
 
 import { formatUrlListText } from "./core.js";
@@ -20,6 +21,7 @@ import { formatUrlListText } from "./core.js";
 
 /**
  * @typedef {Object} PersistedAction
+ * @property {string} id アクションを一意に識別するID。
  * @property {string} collectRange 収集対象範囲。
  * @property {string} format 出力フォーマット。
  * @property {CollectedTab[]} tabs 収集したタブ一覧。
@@ -33,17 +35,18 @@ import { formatUrlListText } from "./core.js";
  * @property {string} displayMode ポップアップ画面の表示形式。
  * @property {string} format コピーする文字列の出力フォーマット。
  * @property {string} collectRange 前回実行時に指定されたタブ収集範囲。
- * @property {"current"|"window"|"all"|"last"} actionButtonRange アクションボタン押下時のタブ収集範囲のグローバル設定。
- * @property {PersistedAction} lastAction 最後に実行された処理の状態と結果。
+ * @property {"current"|"window"|"all"|"last"} actionButtonCollectRange アクションボタン押下時のタブ収集範囲のグローバル設定。
+ * @property {Record<number, PersistedAction>} tabActions タブIDごとの処理結果。複数ウィンドウやタブでの並行操作時の競合を防ぐために用いる。
  */
 
 /**
- * @type {{ displayMode: string, format: string, collectRange: string }}
+ * @type {{ displayMode: string, format: string, collectRange: string, actionButtonCollectRange: string }}
  */
 const DEFAULT_SETTINGS = {
 	displayMode: "detail",
 	format: "url",
-	collectRange: "current"
+	collectRange: "current",
+	actionButtonCollectRange: "current",
 };
 
 /**
@@ -57,7 +60,8 @@ async function initializeDefaultSettings() {
 	await chrome.storage.local.set({
 		displayMode: current.displayMode ?? DEFAULT_SETTINGS.displayMode,
 		format: current.format ?? DEFAULT_SETTINGS.format,
-		collectRange: current.collectRange ?? DEFAULT_SETTINGS.collectRange
+		collectRange: current.collectRange ?? DEFAULT_SETTINGS.collectRange,
+		actionButtonCollectRange: current.actionButtonCollectRange ?? DEFAULT_SETTINGS.actionButtonCollectRange,
 	});
 }
 
@@ -71,10 +75,15 @@ async function initializeDefaultSettings() {
 async function onActionClicked(tab) {
 	const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
 
-	const collectRange = settings.collectRange ?? DEFAULT_SETTINGS.collectRange;
+	// グローバル設定に従って収集範囲を決定する
+	let collectRange = settings.actionButtonCollectRange ?? DEFAULT_SETTINGS.actionButtonCollectRange;
+
+	if (collectRange === "last")
+		collectRange = settings.collectRange ?? DEFAULT_SETTINGS.collectRange;
+
 	const format = settings.format ?? DEFAULT_SETTINGS.format;
 
-	await collectUrls(collectRange, format, true);
+	await collectUrls(collectRange, format, true, tab.id);
 	await openPopup();
 }
 
@@ -82,9 +91,10 @@ async function onActionClicked(tab) {
  * Chrome のショートカットから呼ばれた場合に、指定範囲のURLを収集してコピーし、最後の実行結果を保存する。
  *
  * @param {string} command 実行されたコマンド名。
+ * @param {chrome.tabs.Tab} [tab] 実行時にアクティブだったタブ情報。
  * @returns {Promise<void>} 処理完了時に解決する Promise。
  */
-async function onCommand(command) {
+async function onCommand(command, tab) {
 	const collectRange = commandToRange(command);
 
 	if (!collectRange)
@@ -95,44 +105,61 @@ async function onCommand(command) {
 	const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
 
 	const format = settings.format ?? DEFAULT_SETTINGS.format;
-	await collectUrls(collectRange, format, true);
+
+	// コマンド実行時の対象タブIDを特定する
+	let targetTabId = tab?.id ?? null;
+
+	if (!targetTabId) {
+		const tabs = await chrome.tabs.query({
+			active: true,
+			lastFocusedWindow: true,
+		});
+
+		if (tabs.length > 0)
+			targetTabId = tabs[0].id;
+	}
+
+	await collectUrls(collectRange, format, true, targetTabId);
 	await openPopup();
 }
 
 /**
  * ポップアップからの収集要求を受け取り、必要に応じてレスポンスを返す。
  *
- * @param {{ type?: string, collectRange?: string, format?: string }} message 受信したメッセージ。
+ * @param {{ type?: string, collectRange?: string, format?: string, tabId?: number }} message 受信したメッセージ。
  * @param {unknown} sender 送信元情報。
  * @param {(response?: unknown) => void} sendResponse 応答用コールバック。
  * @returns {boolean | void} 非同期応答を行う場合は true を返す。
  */
 function onRuntimeMessage(message, sender, sendResponse) {
 	const shouldCopy = message?.type === "collect-and-copy";
+
 	collectUrls(
 		message.collectRange,
 		message.format,
 		shouldCopy,
+		message.tabId,
 	).then(sendResponse);
 
 	return true;
 }
 
 /**
- * URL の収集を行い、動作履歴を記録する。
+ * URL の収集を行い、動作履歴を対象タブIDに紐付けて記録する。
  *
  * @param {string} collectRange 収集範囲。
  * @param {string} format 文字列出力フォーマット。
  * @param {boolean} copy コピーを行うかどうか。
- * @returns {Promise<{ ok: boolean, message: string, count: number, tabs: CollectedTab[], text: string }>} 実行結果。
+ * @param {number|null} targetTabId 処理対象とするタブID。
+ * @returns {Promise<{ ok: boolean, message: string, count: number, tabs: CollectedTab[], text: string, id: string }>} 実行結果。
  */
-async function collectUrls(collectRange, format, copy = false) {
+async function collectUrls(collectRange, format, copy = false, targetTabId = null) {
 	try {
 		let isSuccess = true;
 		let message = null;
 
 		// URLリストを収集し、テキストに変換
-		const data = await collectTabs(collectRange);
+		const data = await collectTabs(collectRange, targetTabId);
 		const text = formatUrlListText(data.tabs, format);
 
 		const actionState = {
@@ -161,8 +188,8 @@ async function collectUrls(collectRange, format, copy = false) {
 			actionState.message = message;
 		}
 
-		// 収集設定を記録する
-		await persistActionState(actionState);
+		if (targetTabId !== null)
+			await persistActionState(actionState, targetTabId);
 
 		return {
 			ok: isSuccess,
@@ -170,32 +197,54 @@ async function collectUrls(collectRange, format, copy = false) {
 			count: data.tabs.length,
 			tabs: data.tabs,
 			text,
+			id: actionState.id,
 		};
 	} catch (error) {
-		return await handleCollectionError(collectRange, format, error);
+		return await handleCollectionError(collectRange, format, error, targetTabId);
 	}
 }
 
 /**
  * 指定された範囲のタブを正規化して、URL一覧として扱いやすい形に整形する。
+ * 対象タブIDが指定された場合は、そのタブ自身または属するウィンドウを基準とする。
  *
  * @param {"current" | "window" | "all"} collectRange 収集範囲。
+ * @param {number|null} targetTabId 基準とするタブID。
  * @returns {Promise<{ tabs: CollectedTab[] }>} 正規化済みのタブ一覧。
  */
-async function collectTabs(collectRange) {
+async function collectTabs(collectRange, targetTabId) {
 	let tabs;
+	let targetTab = null;
+
+	if (targetTabId !== null && targetTabId !== undefined) {
+		try {
+			targetTab = await chrome.tabs.get(targetTabId);
+		} catch (error) {
+			// タブが既に閉じられている等の理由で取得できない場合はフォールバックとして無視する
+			targetTab = null;
+		}
+	}
 
 	if (collectRange === "current") {
-		const result = await chrome.tabs.query({
-			active: true,
-			lastFocusedWindow: true
-		});
+		if (targetTab) {
+			tabs = [targetTab];
+		} else {
+			const result = await chrome.tabs.query({
+				active: true,
+				currentWindow: true,
+			});
 
-		tabs = result.slice(0, 1);
+			tabs = result.slice(0, 1);
+		}
 	} else if (collectRange === "window") {
-		tabs = await chrome.tabs.query({
-			currentWindow: true
-		});
+		const queryOptions = {};
+
+		if (targetTab)
+			queryOptions.windowId = targetTab.windowId;
+		else
+			queryOptions.currentWindow = true;
+
+		tabs = await chrome.tabs.query(queryOptions);
 	} else if (collectRange === "all") {
 		tabs = await chrome.tabs.query({});
 	} else {
@@ -207,11 +256,11 @@ async function collectTabs(collectRange) {
 		.map((tab) => ({
 			id: tab.id ?? null,
 			title: tab.title ?? "",
-			url: tab.url
+			url: tab.url,
 		}));
 
 	return {
-		tabs: normalizedTabs
+		tabs: normalizedTabs,
 	};
 }
 
@@ -227,23 +276,23 @@ async function copyToClipboard(text) {
 		await ensureOffscreenDocument();
 		const response = await chrome.runtime.sendMessage({
 			type: "offscreen-copy",
-			text
+			text,
 		});
 
 		if (response?.ok) {
 			return {
-				ok: true
+				ok: true,
 			};
 		}
 
 		return {
 			ok: false,
-			error: response?.error || "Copy failed."
+			error: response?.error || "Copy failed.",
 		};
 	} catch (error) {
 		return {
 			ok: false,
-			error: `Clipboard copy failed: ${error instanceof Error ? error.message : String(error)}`
+			error: `Clipboard copy failed: ${error instanceof Error ? error.message : String(error)}`,
 		};
 	}
 }
@@ -258,7 +307,7 @@ async function ensureOffscreenDocument() {
 
 	const contexts = await chrome.runtime.getContexts({
 		contextTypes: ["OFFSCREEN_DOCUMENT"],
-		documentUrls: [offscreenUrl]
+		documentUrls: [offscreenUrl],
 	});
 
 	if (contexts.length > 0)
@@ -267,20 +316,29 @@ async function ensureOffscreenDocument() {
 	await chrome.offscreen.createDocument({
 		url: "offscreen/offscreen.html",
 		reasons: ["CLIPBOARD"],
-		justification: "Copy collected tab URLs to the system clipboard."
+		justification: "Copy collected tab URLs to the system clipboard.",
 	});
 }
 
 /**
- * 最後の動作設定と処理結果をストレージへ保存する。
- * このデータはポップアップ側から参照され、UI表示に利用される。
+ * 動作設定と処理結果をタブごとにストレージへ保存する。
+ * このデータはポップアップ側から参照され、UI表示の同期に利用される。
  *
  * @param {PersistedAction} actionState 保存するアクション情報。
+ * @param {number} targetTabId 対象とするタブID。
  * @returns {Promise<void>} 保存完了時に解決する Promise。
  */
-async function persistActionState(actionState) {
+async function persistActionState(actionState, targetTabId) {
+	if (targetTabId === null || targetTabId === undefined)
+		return;
+
+	const data = await chrome.storage.local.get({ tabActions: {} });
+	const tabActions = data.tabActions;
+
+	tabActions[targetTabId] = actionState;
+
 	await chrome.storage.local.set({
-		lastAction: actionState
+		tabActions,
 	});
 }
 
@@ -290,28 +348,33 @@ async function persistActionState(actionState) {
  * @param {string} collectRange 収集範囲。
  * @param {string} format フォーマット。
  * @param {unknown} error 発生したエラー。
- * @returns {Promise<{ ok: false, message: string, count: 0, tabs: [], text: "" }>} エラー結果情報。
+ * @param {number|null} targetTabId 対象とするタブID。
+ * @returns {Promise<{ ok: false, message: string, count: 0, tabs: [], text: "", id: string }>} エラー結果情報。
  */
-async function handleCollectionError(collectRange, format, error) {
+async function handleCollectionError(collectRange, format, error, targetTabId) {
 	const message = error instanceof Error
 		? error.message
 		: String(error);
 
+	const id = crypto.randomUUID();
+
 	await persistActionState({
+		id,
 		collectRange,
 		format,
 		tabs: [],
 		text: "",
 		ok: false,
 		message: `URL retrieval failed: ${message}`,
-	});
+	}, targetTabId);
 
 	return {
 		ok: false,
 		message,
 		count: 0,
 		tabs: [],
-		text: ""
+		text: "",
+		id,
 	};
 }
 
