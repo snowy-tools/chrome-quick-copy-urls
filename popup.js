@@ -325,6 +325,14 @@ async function onRangeSelectChanged(event) {
 
 	state.collectRange = event.target.value;
 
+	// 最新の動作条件をストレージに記録する
+	// このロジックはサービスワーカー側にも存在するが、
+	// メッセージングにに失敗した場合にも設定が確実に反映されるように
+	// ここでも記録を実行する。（未検証）
+	await chrome.storage.local.set({
+		collectRange: state.collectRange,
+	});
+
 	await executeUrlCollection();
 }
 

@@ -224,7 +224,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 			actionState.message = message;
 		}
 
-		if (targetTabId !== null)
+		if (hasValidTabId(targetTabId))
 			cacheAndNotifyActionState(targetTabId, actionState);
 
 		return {
@@ -357,6 +357,17 @@ async function ensureOffscreenDocument() {
 }
 
 /**
+ * タブIDとして扱えるかどうかを判定する。
+ * `0` は有効なタブIDであるため、null/undefined だけでなく `NaN` も弾く。
+ *
+ * @param {number | null | undefined} tabId 判定対象のタブID。
+ * @returns {boolean} 有効なタブIDなら true。
+ */
+function hasValidTabId(tabId) {
+	return typeof tabId === "number" && Number.isFinite(tabId);
+}
+
+/**
  * 処理結果をキャッシュに保存し、現在開いているポップアップへ状態の更新を通知する。
  * ポップアップがバックグラウンドでの処理進行をリアルタイムに反映できるようにするために用いる。
  *
@@ -401,7 +412,7 @@ async function handleCollectionError(collectRange, format, error, targetTabId) {
 		message: `URL retrieval failed: ${message}`,
 	};
 
-	if (targetTabId !== null)
+	if (hasValidTabId(targetTabId))
 		cacheAndNotifyActionState(targetTabId, actionState);
 
 	return {
