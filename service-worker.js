@@ -428,19 +428,21 @@ function formatTabCount(count) {
  * @returns {Promise<void>} 実行完了時に解決する Promise。
  */
 async function openPopup() {
-	try {
-		if (chrome.action.openPopup) {
+	if (chrome.action.openPopup) {
+		try {
 			await chrome.action.setPopup({
 				popup: "popup.html",
 			});
 			await chrome.action.openPopup();
+		} catch (error) {
+			// アクティブウィンドウが存在しない場合はポップアップ展開をスキップ
+			console.warn("Could not open popup:", error);
+		} finally {
+			// 次回以降の onClicked を確実に発火させるための割り当て解除
 			await chrome.action.setPopup({
 				popup: "",
 			});
 		}
-	} catch {
-		// 一部の Chrome 環境ではショートカット起動時にポップアップが制限されるため、
-		// ここではコピーそのものの失敗ではないとして無視する。
 	}
 }
 

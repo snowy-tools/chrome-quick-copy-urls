@@ -319,6 +319,7 @@ async function onFormatSelectChanged(event) {
 		format: state.format,
 	});
 
+	// URLの再収集を行わず、既知のURLをもとにテキストを再フォーマットする
 	elements.urlList.value = formatUrlListText(state.tabs, state.format);
 }
 
