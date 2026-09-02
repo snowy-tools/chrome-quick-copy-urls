@@ -131,7 +131,7 @@ async function onCommand(command, tab) {
 	// コマンド実行時の対象タブIDを特定する
 	let targetTabId = tab?.id ?? null;
 
-	if (!targetTabId) {
+	if (!hasValidTabId(targetTabId)) {
 		const tabs = await chrome.tabs.query({
 			active: true,
 			lastFocusedWindow: true,
@@ -160,18 +160,30 @@ function onRuntimeMessage(message, sender, sendResponse) {
 		sendResponse(actionState || null);
 
 		return false;
-	} else {
-		const shouldCopy = message?.type === "collect-and-copy";
-
-		collectUrls(
-			message.collectRange,
-			message.format,
-			shouldCopy,
-			message.tabId,
-		).then(sendResponse);
-
-		return true;
 	}
+
+	if (message?.type !== "collect" && message?.type !== "collect-and-copy")
+		return false;
+
+	const shouldCopy = message.type === "collect-and-copy";
+
+	collectUrls(
+		message.collectRange,
+		message.format,
+		shouldCopy,
+		message.tabId,
+	).then(sendResponse, (error) => {
+		sendResponse({
+			ok: false,
+			message: error instanceof Error ? error.message : String(error),
+			count: 0,
+			tabs: [],
+			text: "",
+			id: crypto.randomUUID(),
+		});
+	});
+
+	return true;
 }
 
 /**
@@ -185,6 +197,9 @@ function onRuntimeMessage(message, sender, sendResponse) {
  */
 async function collectUrls(collectRange, format, copy = false, targetTabId = null) {
 	try {
+		if (typeof collectRange !== "string" || typeof format !== "string")
+			throw new Error("Invalid collection parameters.");
+
 		// 次回の実行時に状態を引き継ぐため、今回使用したパラメータを記録する
 		await chrome.storage.local.set({
 			collectRange,
@@ -267,7 +282,7 @@ async function collectTabs(collectRange, targetTabId) {
 		} else {
 			const result = await chrome.tabs.query({
 				active: true,
-				currentWindow: true,
+				lastFocusedWindow: true,
 			});
 
 			tabs = result.slice(0, 1);

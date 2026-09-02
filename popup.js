@@ -112,7 +112,7 @@ async function initialize() {
 	});
 
 	if (tabAction) {
-		await loadStateFromAction(tabAction);
+		loadStateFromAction(tabAction);
 	} else {
 		// 処理中のタブ切り替えなどの特殊な理由でデータが存在しない場合、
 		// 意図しない対象の自動収集を防ぐためにエラー状態とする
@@ -132,27 +132,36 @@ async function initialize() {
 async function executeUrlCollection() {
 	clearStatusLabels();
 
-	const response = await chrome.runtime.sendMessage({
-		type: "collect",
-		collectRange: state.collectRange,
-		format: state.format,
-		tabId: state.tabId,
-	});
-
-	state.tabs = response?.tabs ?? [];
-	elements.urlList.value = response?.text ?? "";
-
-	if (response?.ok) {
-		showStatus({
-			ok: true,
-			message: response.message,
-			count: response.count,
+	try {
+		const response = await chrome.runtime.sendMessage({
+			type: "collect",
+			collectRange: state.collectRange,
+			format: state.format,
+			tabId: state.tabId,
 		});
-	} else {
+
+		state.tabs = response?.tabs ?? [];
+
+		if (elements.urlList)
+			elements.urlList.value = response?.text ?? "";
+
+		if (response?.ok) {
+			showStatus({
+				ok: true,
+				message: response.message,
+				count: response.count,
+			});
+		} else {
+			showStatus({
+				ok: false,
+				message: response?.message || "URL retrieval failed.",
+				count: response?.count ?? 0,
+			});
+		}
+	} catch (error) {
 		showStatus({
 			ok: false,
-			message: response?.message || "URL retrieval failed.",
-			count: response?.count ?? 0,
+			message: "URL retrieval failed.",
 		});
 	}
 }
@@ -180,7 +189,7 @@ async function getStoredData() {
  *
  * @param {Object} actionData 復元するアクションデータ。
  */
-async function loadStateFromAction(actionData) {
+function loadStateFromAction(actionData) {
 	state.format = actionData.format ?? state.format;
 	state.collectRange = actionData.collectRange ?? state.collectRange;
 	state.tabs = actionData.tabs ?? [];
@@ -277,14 +286,17 @@ function applyDisplayMode(displayMode) {
 /**
  * 再生成ボタン押下時に対象URLを再収集する。
  */
-function onRefreshButtonClicked() {
-	executeUrlCollection();
+async function onRefreshButtonClicked() {
+	await executeUrlCollection();
 }
 
 /**
  * textareaの内容をクリップボードにコピーし、結果をステータスに表示する。
  */
 async function onCopyButtonClicked() {
+	if (!elements.urlList)
+		return;
+
 	const text = elements.urlList.value;
 	const itemCount = text
 		.split(/\r?\n|\n?\r/)               // 行ごとに分割
@@ -384,8 +396,13 @@ async function onModeButtonToggled() {
  * @param {Object} [message.actionState] 更新する状態データ。
  */
 function onRuntimeMessage(message) {
-	if (message.type === "action-state-updated" && message.tabId === state.tabId)
-		loadStateFromAction(message.actionState);
+	if (message?.type !== "action-state-updated")
+		return;
+
+	if (message.tabId !== state.tabId)
+		return;
+
+	loadStateFromAction(message.actionState);
 }
 
 /* イベント登録 */
