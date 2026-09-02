@@ -18,6 +18,10 @@
 		"default_title": "Quick URL Copy",
 		"default_popup": "popup.html"
 	},
+	"options_ui": {
+		"page": "options.html",
+		"open_in_tab": false
+	},
 	"commands": {
 		"copy-current-tab": {
 			"suggested_key": {
