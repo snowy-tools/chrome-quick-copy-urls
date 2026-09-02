@@ -37,15 +37,42 @@ const state = {
  * DOM要素の参照を保持するオブジェクト。
  */
 const elements = {
-	rangeSelect: /** @type {HTMLFieldSetElement} */ document.getElementById("rangeSelect"),
-	formatSelect: /** @type {HTMLFieldSetElement} */ document.getElementById("formatSelect"),
-	urlList: /** @type {HTMLTextAreaElement} */ document.getElementById("urlList"),
-	statusLabel: document.getElementById("statusLabel"),
-	detailControls: document.getElementById("detailControls"),
-	modeButton: document.getElementById("modeButton"),
-	refreshButton: document.getElementById("refreshButton"),
-	copyButton: document.getElementById("copyButton"),
+	rangeSelect: /** @type {HTMLFieldSetElement|null} */ null,
+	formatSelect: /** @type {HTMLFieldSetElement|null} */ null,
+	urlList: /** @type {HTMLTextAreaElement|null} */ null,
+	statusLabel: /** @type {HTMLElement|null} */ null,
+	detailControls: /** @type {HTMLElement|null} */ null,
+	modeButton: /** @type {HTMLButtonElement|null} */ null,
+	refreshButton: /** @type {HTMLButtonElement|null} */ null,
+	copyButton: /** @type {HTMLButtonElement|null} */ null,
 };
+
+function bindDomElements() {
+	// Fetch DOM elements after DOMContentLoaded
+	elements.rangeSelect = /** @type {HTMLFieldSetElement|null} */ document.getElementById("rangeSelect");
+	elements.formatSelect = /** @type {HTMLFieldSetElement|null} */ document.getElementById("formatSelect");
+	elements.urlList = /** @type {HTMLTextAreaElement|null} */ document.getElementById("urlList");
+	elements.statusLabel = /** @type {HTMLElement|null} */ document.getElementById("statusLabel");
+	elements.detailControls = /** @type {HTMLElement|null} */ document.getElementById("detailControls");
+	elements.modeButton = /** @type {HTMLButtonElement|null} */ document.getElementById("modeButton");
+	elements.refreshButton = /** @type {HTMLButtonElement|null} */ document.getElementById("refreshButton");
+	elements.copyButton = /** @type {HTMLButtonElement|null} */ document.getElementById("copyButton");
+
+	// Register event listeners if elements exist
+	if (elements.rangeSelect)
+		elements.rangeSelect.addEventListener("change", onRangeSelectChanged);
+	if (elements.formatSelect)
+		elements.formatSelect.addEventListener("change", onFormatSelectChanged);
+	if (elements.refreshButton)
+		elements.refreshButton.addEventListener("click", onRefreshButtonClicked);
+	if (elements.copyButton)
+		elements.copyButton.addEventListener("click", onCopyButtonClicked);
+	if (elements.modeButton)
+		elements.modeButton.addEventListener("click", onModeButtonToggled);
+
+	// Listen for runtime messages to update UI
+	chrome.runtime.onMessage.addListener(onRuntimeMessage);
+}
 
 /**
  * ポップアップが読み込まれた直後に初期化を行う。
@@ -67,6 +94,9 @@ async function initialize() {
 
 	const displayMode = data.displayMode;
 	state.displayMode = displayMode;
+
+	// Bind DOM elements and register UI event listeners now that DOM is ready
+	bindDomElements();
 
 	applyDisplayMode(displayMode);
 
@@ -352,10 +382,3 @@ function onRuntimeMessage(message) {
 
 /* イベント登録 */
 document.addEventListener("DOMContentLoaded", onInitialLoaded);
-chrome.runtime.onMessage.addListener(onRuntimeMessage);
-
-elements.rangeSelect.addEventListener("change", onRangeSelectChanged);
-elements.formatSelect.addEventListener("change", onFormatSelectChanged);
-elements.refreshButton.addEventListener("click", onRefreshButtonClicked);
-elements.copyButton.addEventListener("click", onCopyButtonClicked);
-elements.modeButton.addEventListener("click", onModeButtonToggled);
