@@ -4,7 +4,7 @@
  * 収集したURLの一覧やコピー状態を表示する。
  */
 
-import { formatUrlListText } from "./core.js";
+import { formatUrlListText } from "./formatter.js";
 
 /**
  * @typedef {Object} TabEntry

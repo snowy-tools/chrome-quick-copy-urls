@@ -6,7 +6,8 @@ Chrome extension to collect and copy URLs from open tabs. The popup displays col
 
 - **Flexible URL collection range:**
   - Active tab only
-  - All tabs in the current window
+  - Tabs in the same tab group
+	- Tabs in the current window
   - All open tabs
 - **Interactive popup controls:**
   - Collected URLs and status messages are displayed in the popup
@@ -19,6 +20,8 @@ Chrome extension to collect and copy URLs from open tabs. The popup displays col
 - **Output formats:**
   - `URL`: One URL per line
   - `Title + URL`: Tab-separated title and URL (format: `{title}\t{url}`)
+  - `CSV`, `HTML`, `JSON`, and `Markdown` output
+  - Automatic deduplication and filtering of special URLs like `chrome://` and `about:blank`
 - **Keyboard shortcuts:**
   - Support copy commands for each URL collection range
 - **Settings page:**

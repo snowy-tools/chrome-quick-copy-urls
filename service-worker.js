@@ -4,7 +4,7 @@
  * 複数のウィンドウやタブで並行して動作できるよう、操作履歴は操作対象のタブIDごとに管理する。
  */
 
-import { formatUrlListText } from "./core.js";
+import { formatUrlListText } from "./formatter.js";
 
 /**
  * @typedef {Object} CollectedTab
@@ -33,7 +33,7 @@ import { formatUrlListText } from "./core.js";
 /**
  * @typedef {Object} UserPreferences
  * @property {string} displayMode ポップアップ画面の表示形式。
- * @property {"current"|"window"|"all"|"last"} actionButtonCollectRange アクションボタン押下時のタブ収集範囲のグローバル設定。
+ * @property {"current"|"window"|"group"|"all"|"last"} actionButtonCollectRange アクションボタン押下時のタブ収集範囲のグローバル設定。
  */
 
 /**
@@ -196,13 +196,17 @@ function onRuntimeMessage(message, sender, sendResponse) {
  * @returns {Promise<{ ok: boolean, message: string, count: number, tabs: CollectedTab[], text: string, id: string }>} 実行結果。
  */
 async function collectUrls(collectRange, format, copy = false, targetTabId = null) {
+	const normalizedRange = typeof collectRange === "string" && collectRange === "same-group"
+		? "group"
+		: collectRange;
+
 	try {
 		if (typeof collectRange !== "string" || typeof format !== "string")
 			throw new Error("Invalid collection parameters.");
 
 		// 次回の実行時に状態を引き継ぐため、今回使用したパラメータを記録する
 		await chrome.storage.local.set({
-			collectRange,
+			collectRange: normalizedRange,
 			format,
 		});
 
@@ -210,12 +214,12 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 		let message = null;
 
 		// URLリストを収集し、テキストに変換
-		const data = await collectTabs(collectRange, targetTabId);
+		const data = await collectTabs(normalizedRange, targetTabId);
 		const text = formatUrlListText(data.tabs, format);
 
 		const actionState = {
 			id: crypto.randomUUID(),
-			collectRange,
+			collectRange: normalizedRange,
 			format,
 			tabs: data.tabs,
 			text,
@@ -251,7 +255,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 			id: actionState.id,
 		};
 	} catch (error) {
-		return await handleCollectionError(collectRange, format, error, targetTabId);
+		return await handleCollectionError(normalizedRange, format, error, targetTabId);
 	}
 }
 
@@ -264,6 +268,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
  * @returns {Promise<{ tabs: CollectedTab[] }>} 正規化済みのタブ一覧。
  */
 async function collectTabs(collectRange, targetTabId) {
+	const normalizedRange = collectRange === "same-group" ? "group" : collectRange;
 	let tabs;
 	let targetTab = null;
 
@@ -276,7 +281,7 @@ async function collectTabs(collectRange, targetTabId) {
 		}
 	}
 
-	if (collectRange === "current") {
+	if (normalizedRange === "current") {
 		if (targetTab) {
 			tabs = [targetTab];
 		} else {
@@ -287,7 +292,7 @@ async function collectTabs(collectRange, targetTabId) {
 
 			tabs = result.slice(0, 1);
 		}
-	} else if (collectRange === "window") {
+	} else if (normalizedRange === "window") {
 		const queryOptions = {};
 
 		if (targetTab)
@@ -296,23 +301,106 @@ async function collectTabs(collectRange, targetTabId) {
 			queryOptions.currentWindow = true;
 
 		tabs = await chrome.tabs.query(queryOptions);
-	} else if (collectRange === "all") {
+	} else if (normalizedRange === "group") {
+		const currentTab = targetTab ?? (await chrome.tabs.query({
+			active: true,
+			lastFocusedWindow: true,
+		})).at(0) ?? null;
+
+		if (!currentTab) {
+			tabs = [];
+		} else if ((currentTab.groupId ?? -1) === -1) {
+			tabs = [currentTab];
+		} else {
+			tabs = await chrome.tabs.query({
+				windowId: currentTab.windowId,
+			});
+			tabs = tabs.filter((tab) => (tab.groupId ?? -1) === currentTab.groupId);
+		}
+	} else if (normalizedRange === "all") {
 		tabs = await chrome.tabs.query({});
 	} else {
-		throw new Error(`Unknown collect range: ${collectRange}`);
+		throw new Error(`Unknown collect range: ${normalizedRange}`);
 	}
 
-	const normalizedTabs = tabs
-		.filter((tab) => typeof tab.url === "string" && tab.url.length > 0)
+	return {
+		tabs: normalizeAndFilterTabs(tabs),
+	};
+}
+
+/**
+ * 収集対象のタブを正規化し、重複や特殊URLを除外する。
+ *
+ * @param {chrome.tabs.Tab[]} tabs タブ一覧。
+ * @returns {CollectedTab[]} 正規化済みタブ一覧。
+ */
+function normalizeAndFilterTabs(tabs) {
+	const seenUrls = new Set();
+
+	return tabs
+		.filter((tab) => typeof tab?.url === "string" && tab.url.trim().length > 0)
 		.map((tab) => ({
 			id: tab.id ?? null,
 			title: tab.title ?? "",
-			url: tab.url,
-		}));
+			url: tab.url.trim(),
+		}))
+		.filter(({ url }) => {
+			if (isSpecialUrl(url))
+				return false;
 
-	return {
-		tabs: normalizedTabs,
-	};
+			const normalizedUrl = normalizeUrl(url);
+			if (!normalizedUrl)
+				return false;
+
+			const key = normalizedUrl.toLowerCase();
+			if (seenUrls.has(key))
+				return false;
+
+			seenUrls.add(key);
+			return true;
+		})
+		.map(({ id, title, url }) => ({
+			id,
+			title,
+			url: normalizeUrl(url) ?? url,
+		}));
+}
+
+/**
+ * 特殊URLや無効なURLを除外する。
+ *
+ * @param {string} value URL文字列。
+ * @returns {boolean} 除外対象なら true。
+ */
+function isSpecialUrl(value) {
+	const url = value.trim();
+	if (!url)
+		return true;
+
+	const lower = url.toLowerCase();
+	if (lower === "about:blank" || lower.startsWith("about:"))
+		return true;
+	if (lower.startsWith("chrome://") || lower.startsWith("chrome-extension://") || lower.startsWith("devtools://") || lower.startsWith("edge://"))
+		return true;
+	if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("file:"))
+		return true;
+
+	return false;
+}
+
+/**
+ * URLを安定した形式へ正規化する。
+ *
+ * @param {string} value URL文字列。
+ * @returns {string | null} 正規化済み URL または null。
+ */
+function normalizeUrl(value) {
+	try {
+		const url = new URL(value.trim());
+		return url.href;
+	} catch (error) {
+		return null;
+	}
 }
 
 /**
@@ -444,7 +532,7 @@ async function handleCollectionError(collectRange, format, error, targetTabId) {
  * Chrome コマンド名から対象の収集範囲へ変換する。
  *
  * @param {string} command 実行されたショートカット名。
- * @returns {"current" | "window" | "all" | null} 変換後の範囲。
+ * @returns {"current" | "window" | "group" | "all" | null} 変換後の範囲。
  */
 function commandToRange(command) {
 	switch (command) {
@@ -452,6 +540,9 @@ function commandToRange(command) {
 			return "current";
 		case "copy-window-tabs":
 			return "window";
+		case "copy-group-tabs":
+		case "copy-same-group-tabs":
+			return "group";
 		case "copy-all-tabs":
 			return "all";
 		default:

@@ -34,9 +34,15 @@
 			},
 			"description": "Copy URLs from the current window"
 		},
-		"copy-all-tabs": {
+		"copy-group-tabs": {
 			"suggested_key": {
 				"default": "Alt+Shift+3"
+			},
+			"description": "Copy URLs from the same tab group"
+		},
+		"copy-all-tabs": {
+			"suggested_key": {
+				"default": "Alt+Shift+4"
 			},
 			"description": "Copy URLs from all tabs"
 		}
