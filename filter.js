@@ -19,10 +19,11 @@ export function normalizeAndFilterTabs(tabs, options = {}) {
 	const seenUrls = new Set();
 
 	return tabs.reduce((result, tab) => {
-		if (typeof tab?.url !== "string")
-			return result;
-
-		const trimmedUrl = tab.url.trim();
+		// 文字列以外の型（undefined/null等）も空文字として安全に文字列化する
+		// これによりユーザーは「空文字が混ざっている = 正常でないタブが存在する」ことに間接的に気付ける
+		// (将来的にはユーザーに直接警告を表示するべき)
+		const rawUrl = typeof tab?.url === "string" ? tab.url : "";
+		const trimmedUrl = rawUrl.trim();
 
 		if (filterBlankUrls && trimmedUrl.length === 0)
 			return result;
@@ -30,13 +31,10 @@ export function normalizeAndFilterTabs(tabs, options = {}) {
 		if (filterSpecialUrls && isSpecialUrl(trimmedUrl))
 			return result;
 
-		const normalizedUrl = normalizeUrl(trimmedUrl);
+		const normalizedUrl = normalizeUrl(trimmedUrl) ?? trimmedUrl;
 
-		if (!normalizedUrl)
-			return result;
-
-		// 重複URLの判定
-		if (filterDuplicateUrls) {
+		// 重複URLの判定（空文字列でない場合のみ重複判定を実施）
+		if (filterDuplicateUrls && normalizedUrl.length > 0) {
 			const key = normalizedUrl.toLowerCase();
 
 			if (seenUrls.has(key))
@@ -67,7 +65,7 @@ export function isSpecialUrl(value) {
 	const url = value.trim();
 
 	if (!url)
-		return true;
+		return false;
 
 	if (SPECIAL_URL_PATTERN.test(url))
 		return true;
