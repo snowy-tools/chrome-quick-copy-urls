@@ -6,19 +6,28 @@
  */
 
 /**
- * 収集されたタブ一覧から、重複除去や特殊URL除外を適用した一覧を返す。
+ * 収集されたタブ一覧から、空白URL除去や重複除去、特殊URL除外を適用した一覧を返す。
  *
  * @param {Array<{id?: number | null, title?: string, url?: string}>} tabs タブ一覧。
- * @param {{ filterDuplicateUrls?: boolean, filterSpecialUrls?: boolean }} [options] 除去オプション。
+ * @param {{ filterBlankUrls?: boolean, filterDuplicateUrls?: boolean, filterSpecialUrls?: boolean }} [options] 除去オプション。
  * @returns {TabEntry[]} 正規化済みタブ一覧。
  */
 export function normalizeAndFilterTabs(tabs, options = {}) {
+	const filterBlankUrls = options.filterBlankUrls ?? true;
 	const filterDuplicateUrls = options.filterDuplicateUrls ?? true;
 	const filterSpecialUrls = options.filterSpecialUrls ?? true;
 	const seenUrls = new Set();
 
 	return tabs
-		.filter((tab) => typeof tab?.url === "string" && tab.url.trim().length > 0)
+		.filter((tab) => {
+			if (typeof tab?.url !== "string")
+				return false;
+
+			if (filterBlankUrls && tab.url.trim().length === 0)
+				return false;
+
+			return true;
+		})
 		.map((tab) => ({
 			id: tab.id ?? null,
 			title: tab.title ?? "",

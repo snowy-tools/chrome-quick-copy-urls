@@ -25,6 +25,9 @@ import { normalizeAndFilterTabs } from "./filter.js";
  * @property {string} id アクションを一意に識別するID。
  * @property {string} collectRange 収集対象範囲。
  * @property {string} format 出力フォーマット。
+ * @property {boolean} filterBlankUrls 空白URL除去の有無。
+ * @property {boolean} filterDuplicateUrls 重複URL除去の有無。
+ * @property {boolean} filterSpecialUrls 特殊URL除去の有無。
  * @property {CollectedTab[]} filteredTabs 出力対象となるタブ（フィルタ適用済み）。
  * @property {CollectedTab[]} collectedTabs 収集範囲に含まれるすべてのタブ（フィルタ未適用）。
  * @property {string} text 生成した文字列。
@@ -57,6 +60,7 @@ const actionCache = new Map();
 const DEFAULT_PREFERENCES = {
 	displayMode: "detail",
 	actionButtonCollectRange: "current",
+	filterBlankUrls: true,
 	filterDuplicateUrls: true,
 	filterSpecialUrls: true,
 };
@@ -67,6 +71,7 @@ const DEFAULT_PREFERENCES = {
 const DEFAULT_LAST_CONDITION = {
 	format: "url",
 	collectRange: "current",
+	filterBlankUrls: true,
 	filterDuplicateUrls: true,
 	filterSpecialUrls: true,
 };
@@ -88,6 +93,7 @@ async function initializeStorageDefaults() {
 		actionButtonCollectRange: current.actionButtonCollectRange ?? DEFAULT_PREFERENCES.actionButtonCollectRange,
 		format: current.format ?? DEFAULT_LAST_CONDITION.format,
 		collectRange: current.collectRange ?? DEFAULT_LAST_CONDITION.collectRange,
+		filterBlankUrls: current.filterBlankUrls ?? DEFAULT_PREFERENCES.filterBlankUrls,
 		filterDuplicateUrls: current.filterDuplicateUrls ?? DEFAULT_PREFERENCES.filterDuplicateUrls,
 		filterSpecialUrls: current.filterSpecialUrls ?? DEFAULT_PREFERENCES.filterSpecialUrls,
 	});
@@ -113,10 +119,12 @@ async function onActionClicked(tab) {
 		collectRange = data.collectRange ?? DEFAULT_LAST_CONDITION.collectRange;
 
 	const format = data.format ?? DEFAULT_LAST_CONDITION.format;
+	const filterBlankUrls = data.filterBlankUrls ?? DEFAULT_LAST_CONDITION.filterBlankUrls;
 	const filterDuplicateUrls = data.filterDuplicateUrls ?? DEFAULT_LAST_CONDITION.filterDuplicateUrls;
 	const filterSpecialUrls = data.filterSpecialUrls ?? DEFAULT_LAST_CONDITION.filterSpecialUrls;
 
 	await collectUrls(collectRange, format, true, tab.id, {
+		filterBlankUrls,
 		filterDuplicateUrls,
 		filterSpecialUrls,
 	});
@@ -140,6 +148,7 @@ async function onCommand(command, tab) {
 	// 前回の履歴データを取得・引き継ぐ
 	const data = await chrome.storage.local.get(DEFAULT_LAST_CONDITION);
 	const format = data.format ?? DEFAULT_LAST_CONDITION.format;
+	const filterBlankUrls = data.filterBlankUrls ?? DEFAULT_LAST_CONDITION.filterBlankUrls;
 	const filterDuplicateUrls = data.filterDuplicateUrls ?? DEFAULT_LAST_CONDITION.filterDuplicateUrls;
 	const filterSpecialUrls = data.filterSpecialUrls ?? DEFAULT_LAST_CONDITION.filterSpecialUrls;
 
@@ -157,6 +166,7 @@ async function onCommand(command, tab) {
 	}
 
 	await collectUrls(collectRange, format, true, targetTabId, {
+		filterBlankUrls,
 		filterDuplicateUrls,
 		filterSpecialUrls,
 	});
@@ -191,6 +201,7 @@ function onRuntimeMessage(message, sender, sendResponse) {
 		shouldCopy,
 		message.tabId,
 		{
+			filterBlankUrls: message.filterBlankUrls,
 			filterDuplicateUrls: message.filterDuplicateUrls,
 			filterSpecialUrls: message.filterSpecialUrls,
 		},
@@ -222,6 +233,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 	const normalizedRange = typeof collectRange === "string" && collectRange === "same-group"
 		? "group"
 		: collectRange;
+	const filterBlankUrls = filterOptions.filterBlankUrls ?? true;
 	const filterDuplicateUrls = filterOptions.filterDuplicateUrls ?? true;
 	const filterSpecialUrls = filterOptions.filterSpecialUrls ?? true;
 
@@ -233,6 +245,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 		await chrome.storage.local.set({
 			collectRange: normalizedRange,
 			format,
+			filterBlankUrls,
 			filterDuplicateUrls,
 			filterSpecialUrls,
 		});
@@ -242,6 +255,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 
 		// URLリストを収集し、テキストに変換
 		const data = await collectTabs(normalizedRange, targetTabId, {
+			filterBlankUrls,
 			filterDuplicateUrls,
 			filterSpecialUrls,
 		});
@@ -251,6 +265,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 			id: crypto.randomUUID(),
 			collectRange: normalizedRange,
 			format,
+			filterBlankUrls,
 			filterDuplicateUrls,
 			filterSpecialUrls,
 			filteredTabs: data.filteredTabs,
@@ -304,6 +319,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
  */
 async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 	const normalizedRange = collectRange === "same-group" ? "group" : collectRange;
+	const filterBlankUrls = filterOptions.filterBlankUrls ?? true;
 	const filterDuplicateUrls = filterOptions.filterDuplicateUrls ?? true;
 	const filterSpecialUrls = filterOptions.filterSpecialUrls ?? true;
 	let tabs;
@@ -361,17 +377,18 @@ async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 	}
 
 	const normalizedTabs = normalizeAndFilterTabs(tabs, {
+		filterBlankUrls,
 		filterDuplicateUrls,
 		filterSpecialUrls,
 	});
 
 	return {
-		filteredTabs: normalizedTabs,
 		collectedTabs: tabs.map((tab) => ({
 			id: tab.id ?? null,
 			title: tab.title ?? "",
 			url: typeof tab.url === "string" ? tab.url.trim() : "",
-		})).filter((tab) => typeof tab.url === "string" && tab.url.length > 0),
+		})),
+		filteredTabs: normalizedTabs,
 	};
 }
 

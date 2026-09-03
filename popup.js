@@ -33,6 +33,7 @@ const state = {
 	format: "url",
 	displayMode: "detail",
 	tabId: null,
+	filterBlankUrls: true,
 	filterDuplicateUrls: true,
 	filterSpecialUrls: true,
 };
@@ -102,6 +103,7 @@ async function initialize() {
 
 	const displayMode = data.displayMode;
 	state.displayMode = displayMode;
+	state.filterBlankUrls = data.filterBlankUrls ?? true;
 	state.filterDuplicateUrls = data.filterDuplicateUrls ?? true;
 	state.filterSpecialUrls = data.filterSpecialUrls ?? true;
 
@@ -109,6 +111,10 @@ async function initialize() {
 	bindDomElements();
 
 	applyDisplayMode(displayMode);
+
+	const blankCheckbox = document.querySelector('input[name="filterBlankUrls"]');
+	if (blankCheckbox)
+		blankCheckbox.checked = state.filterBlankUrls;
 
 	const duplicateCheckbox = document.querySelector('input[name="filterDuplicateUrls"]');
 	if (duplicateCheckbox)
@@ -156,6 +162,7 @@ async function executeUrlCollection() {
 			collectRange: state.collectRange,
 			format: state.format,
 			tabId: state.tabId,
+			filterBlankUrls: state.filterBlankUrls,
 			filterDuplicateUrls: state.filterDuplicateUrls,
 			filterSpecialUrls: state.filterSpecialUrls,
 		});
@@ -198,6 +205,7 @@ async function getStoredData() {
 		displayMode: "detail",
 		format: "url",
 		collectRange: "current",
+		filterBlankUrls: true,
 		filterDuplicateUrls: true,
 		filterSpecialUrls: true,
 	});
@@ -215,6 +223,7 @@ async function getStoredData() {
 function loadStateFromAction(actionData) {
 	state.format = actionData.format ?? state.format;
 	state.collectRange = actionData.collectRange ?? state.collectRange;
+	state.filterBlankUrls = actionData.filterBlankUrls ?? state.filterBlankUrls;
 	state.filterDuplicateUrls = actionData.filterDuplicateUrls ?? state.filterDuplicateUrls;
 	state.filterSpecialUrls = actionData.filterSpecialUrls ?? state.filterSpecialUrls;
 	state.filteredTabs = actionData.filteredTabs ?? [];
@@ -229,6 +238,10 @@ function loadStateFromAction(actionData) {
 	const formatRadio = document.querySelector(`input[name="format"][value="${state.format}"]`);
 	if (formatRadio)
 		formatRadio.checked = true;
+
+	const blankCheckbox = document.querySelector('input[name="filterBlankUrls"]');
+	if (blankCheckbox)
+		blankCheckbox.checked = state.filterBlankUrls;
 
 	const duplicateCheckbox = document.querySelector('input[name="filterDuplicateUrls"]');
 	if (duplicateCheckbox)
@@ -293,6 +306,7 @@ function reapplyFilterTabs() {
 		? state.collectedTabs
 		: state.filteredTabs;
 	const filteredTabs = normalizeAndFilterTabs(baseTabs, {
+		filterBlankUrls: state.filterBlankUrls,
 		filterDuplicateUrls: state.filterDuplicateUrls,
 		filterSpecialUrls: state.filterSpecialUrls,
 	});
@@ -417,6 +431,15 @@ async function onRangeSelectChanged(event) {
  * @returns {Promise<void>} 更新完了時に解決する Promise。
  */
 async function onFilterSelectChanged(event) {
+	if (event.target.name === "filterBlankUrls") {
+		state.filterBlankUrls = event.target.checked;
+		await chrome.storage.local.set({
+			filterBlankUrls: state.filterBlankUrls,
+		});
+		reapplyFilterTabs();
+		return;
+	}
+
 	if (event.target.name === "filterDuplicateUrls") {
 		state.filterDuplicateUrls = event.target.checked;
 		await chrome.storage.local.set({
