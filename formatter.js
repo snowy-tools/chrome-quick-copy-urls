@@ -7,37 +7,92 @@
  */
 
 /**
+ * フォーマッタの設定定義
+ * prefix, itemFormatter, separator, postfix, encoder, titleFill, emptyFallback の組み合わせで各形式を汎化
+ */
+const FORMATTERS = {
+	"url": {
+		itemFormatter: ({ url }) => `${url}\n`,
+	},
+	"tsv": {
+		itemFormatter: ({ title, url }) => `${title}\t${url}\n`,
+	},
+	"csv": {
+		itemFormatter: ({ title, url }) => `${title},${url}\n`,
+		encoder: { title: escapeCsvCell, url: escapeCsvCell }
+	},
+	"json": {
+		prefix: "[\n",
+		itemFormatter: ({ title, url }) => `\t${JSON.stringify({ title, url })}`,
+		separator: ",\n",
+		postfix: "\n]\n",
+		emptyFallback: "[]\n",
+		encoder: null // JSON.stringifyがエンコードを担うため不要
+	},
+	"markdown-link": {
+		itemFormatter: ({ title, url }) => `[${title}](${url})\n`,
+		titleFill: "Untitled",
+		encoder: { title: escapeMarkdownTitle, url: encodeMarkdownUrl }
+	},
+	"markdown-list": {
+		itemFormatter: ({ title, url }) => `- [${title}](${url})\n`,
+		titleFill: "Untitled",
+		encoder: { title: escapeMarkdownTitle, url: encodeMarkdownUrl }
+	},
+	"markdown-table": {
+		prefix: "| title | url |\n| --- | --- |\n",
+		itemFormatter: ({ title, url }) => `| ${title} | ${url} |\n`,
+		titleFill: "Untitled",
+		encoder: { title: escapeMarkdownTitle, url: encodeMarkdownUrl }
+	},
+	"html-link": {
+		itemFormatter: ({ title, url }) => `<a href="${url}">${title}</a>\n`,
+		titleFill: "Untitled",
+		encoder: { title: escapeHtml, url: escapeHtml }
+	},
+	"html-list": {
+		prefix: "<ul>\n",
+		itemFormatter: ({ title, url }) => `\t<li><a href="${url}">${title}</a></li>\n`,
+		postfix: "</ul>\n",
+		titleFill: "Untitled",
+		encoder: { title: escapeHtml, url: escapeHtml }
+	}
+};
+
+/**
  * @param {TabLike[]} tabs タブ一覧。
- * @param {string} format 出力形式（"url" | "tsv" | "csv" | "html" | "json" | "markdown"）。
+ * @param {string} format 出力形式（"url" | "tsv" | "csv" | "json" | "markdown-link" | "markdown-list" | "markdown-table" | "html-link" | "html-list"）。
  * @returns {string} 生成した文字列。
  */
-export function formatUrlListText(tabs, format) {
-	const formatters = {
-		url: (entries) => entries.map(({ url }) => `${url}\n`).join(""),
-		"tsv": (entries) => entries
-			.map(({ title, url }) => `${title || "Untitled"}\t${url}\n`)
-			.join(""),
-		csv: (entries) => {
-			const rows = entries.map(({ title, url }) => [title || "Untitled", url]);
-			const csvLines = rows.map((row) => row.map(escapeCsvCell).join(","));
-			return `${csvLines.join("\n")}\n`;
-		},
-		html: (entries) => {
-			const listItems = entries.map(({ title, url }) => {
-				const label = escapeHtml(title || "Untitled");
-				const href = escapeHtml(url);
-				return `\t<li><a href="${href}">${label}</a></li>`;
-			}).join("\n");
-			return `<ul>\n${listItems}\n</ul>\n`;
-		},
-		json: (entries) => JSON.stringify(entries.map(({ title, url }) => ({ title: title || "Untitled", url })), null, 2) + "\n",
-		markdown: (entries) => entries
-			.map(({ title, url }) => `- [${(title || "Untitled").replace(/[\[\]\\]/g, " ")}](${encodeMarkdownUrl(url)})`)
-			.join("\n") + "\n",
-	};
+export function formatUrlList(tabs, format) {
+	const def = FORMATTERS[format] ?? FORMATTERS["url"];
+	const prefix = def.prefix ?? "";
+	const postfix = def.postfix ?? "";
+	const separator = def.separator ?? "";
 
-	const formatter = formatters[format] ?? formatters.url;
-	return formatter(tabs);
+	// タブが0件の場合のフォールバック
+	if (!tabs || tabs.length === 0)
+		return def.emptyFallback ?? `${prefix}${postfix}`;
+
+	const items = tabs.map(tab => {
+		let title = tab.title ?? "";
+		let url = tab.url ?? "";
+
+		// マークダウン・HTML系など、titleFillが設定されている場合は空文字を補完
+		if (!title && def.titleFill)
+			title = def.titleFill;
+
+		// 指定されたエンコーダでタイトルとURLをエスケープ/エンコード
+		if (def.encoder) {
+			title = def.encoder.title ? def.encoder.title(title) : title;
+			url = def.encoder.url ? def.encoder.url(url) : url;
+		}
+
+		return def.itemFormatter({ title, url });
+	});
+
+	// 各要素を結合し、前後にprefix/postfixを付与（postfixには改行を含める）
+	return `${prefix}${items.join(separator)}${postfix}`;
 }
 
 /**
@@ -76,4 +131,14 @@ function escapeHtml(value) {
  */
 function encodeMarkdownUrl(url) {
 	return String(url ?? "").replace(/\s+/g, "%20");
+}
+
+/**
+ * Markdownのリンクテキスト用に特殊文字をエスケープする。
+ *
+ * @param {string} title タイトル文字列。
+ * @returns {string} エスケープ後のタイトル文字列。
+ */
+function escapeMarkdownTitle(title) {
+	return String(title ?? "").replace(/[\[\]\\]/g, " ");
 }

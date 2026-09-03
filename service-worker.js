@@ -4,7 +4,7 @@
  * 複数のウィンドウやタブで並行して動作できるよう、操作履歴は操作対象のタブIDごとに管理する。
  */
 
-import { formatUrlListText } from "./formatter.js";
+import { formatUrlList } from "./formatter.js";
 
 /**
  * @typedef {Object} CollectedTab
@@ -242,7 +242,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 			filterDuplicateUrls,
 			filterSpecialUrls,
 		});
-		const text = formatUrlListText(data.tabs, format);
+		const text = formatUrlList(data.tabs, format);
 
 		const actionState = {
 			id: crypto.randomUUID(),

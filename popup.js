@@ -4,7 +4,7 @@
  * 収集したURLの一覧やコピー状態を表示する。
  */
 
-import { formatUrlListText } from "./formatter.js";
+import { formatUrlList } from "./formatter.js";
 
 /**
  * @typedef {Object} TabEntry
@@ -421,7 +421,7 @@ async function onFormatSelectChanged(event) {
 	});
 
 	// URLの再収集を行わず、既知のURLをもとにテキストを再フォーマットする
-	elements.urlList.value = formatUrlListText(state.tabs, state.format);
+	elements.urlList.value = formatUrlList(state.tabs, state.format);
 }
 
 /**
