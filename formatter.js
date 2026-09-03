@@ -8,21 +8,18 @@
 
 /**
  * @param {TabLike[]} tabs タブ一覧。
- * @param {string} format 出力形式（"url" | "title-url" | "csv" | "html" | "json" | "markdown"）。
+ * @param {string} format 出力形式（"url" | "tsv" | "csv" | "html" | "json" | "markdown"）。
  * @returns {string} 生成した文字列。
  */
 export function formatUrlListText(tabs, format) {
 	const formatters = {
 		url: (entries) => entries.map(({ url }) => `${url}\n`).join(""),
-		"title-url": (entries) => entries
+		"tsv": (entries) => entries
 			.map(({ title, url }) => `${title || "Untitled"}\t${url}\n`)
 			.join(""),
 		csv: (entries) => {
 			const rows = entries.map(({ title, url }) => [title || "Untitled", url]);
-			const csvLines = [
-				["title", "url"],
-				...rows,
-			].map((row) => row.map(escapeCsvCell).join(","));
+			const csvLines = rows.map((row) => row.map(escapeCsvCell).join(","));
 			return `${csvLines.join("\n")}\n`;
 		},
 		html: (entries) => {

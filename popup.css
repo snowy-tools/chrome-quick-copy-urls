@@ -103,6 +103,8 @@ textarea {
 	font-size: 13px;
 	background: #fafafa;
 	color: #202124;
+	overflow-y: auto;
+	overflow-x: auto;
 }
 
 .actions {
