@@ -85,6 +85,7 @@ function bindDomElements() {
 
 /**
  * ポップアップが読み込まれた直後に初期化を行う。
+ * DOMContentLoaded イベント発生時に各種セットアップを開始する。
  *
  * @param {Event} event DOMContentLoaded イベント。
  */
@@ -109,7 +110,6 @@ async function initialize() {
 
 	// Bind DOM elements and register UI event listeners now that DOM is ready
 	bindDomElements();
-
 	applyDisplayMode(displayMode);
 
 	const blankCheckbox = document.querySelector('input[name="filterBlankUrls"]');
@@ -415,7 +415,7 @@ async function onRangeSelectChanged(event) {
 
 	// 最新の動作条件をストレージに記録する
 	// このロジックはサービスワーカー側にも存在するが、
-	// メッセージングにに失敗した場合にも設定が確実に反映されるように
+	// メッセージングに失敗した場合にも設定が確実に反映されるように
 	// ここでも記録を実行する。（未検証）
 	await chrome.storage.local.set({
 		collectRange: state.collectRange,
@@ -426,34 +426,24 @@ async function onRangeSelectChanged(event) {
 
 /**
  * フィルタリング設定の選択が変わったときに state と storage を更新し、一覧を再生成する。
+ * 分岐処理を統合し、指定プロパティへの動的アクセスで合理化を図る。
  *
  * @param {Event} event changeイベント。
  * @returns {Promise<void>} 更新完了時に解決する Promise。
  */
 async function onFilterSelectChanged(event) {
-	if (event.target.name === "filterBlankUrls") {
-		state.filterBlankUrls = event.target.checked;
-		await chrome.storage.local.set({
-			filterBlankUrls: state.filterBlankUrls,
-		});
-		reapplyFilterTabs();
-		return;
-	}
+	const name = event.target.name;
 
-	if (event.target.name === "filterDuplicateUrls") {
-		state.filterDuplicateUrls = event.target.checked;
-		await chrome.storage.local.set({
-			filterDuplicateUrls: state.filterDuplicateUrls,
-		});
-		reapplyFilterTabs();
-		return;
-	}
+	if (name === "filterBlankUrls"
+		|| name === "filterDuplicateUrls"
+		|| name === "filterSpecialUrls"
+	) {
+		state[name] = event.target.checked;
 
-	if (event.target.name === "filterSpecialUrls") {
-		state.filterSpecialUrls = event.target.checked;
 		await chrome.storage.local.set({
-			filterSpecialUrls: state.filterSpecialUrls,
+			[name]: state[name],
 		});
+
 		reapplyFilterTabs();
 	}
 }

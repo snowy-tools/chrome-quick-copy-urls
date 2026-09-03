@@ -9,9 +9,9 @@ import { normalizeAndFilterTabs } from "./filter.js";
 
 /**
  * @typedef {Object} CollectedTab
- * @property {number|null} id タブID.
- * @property {string} title タブタイトル.
- * @property {string} url タブURL.
+ * @property {number|null} id タブID。
+ * @property {string} title タブタイトル。
+ * @property {string} url タブURL。
  */
 
 /**
@@ -227,6 +227,7 @@ function onRuntimeMessage(message, sender, sendResponse) {
  * @param {string} format 文字列出力フォーマット。
  * @param {boolean} copy コピーを行うかどうか。
  * @param {number|null} targetTabId 処理対象とするタブID。
+ * @param {Object} filterOptions URLのフィルタリング条件。
  * @returns {Promise<{ ok: boolean, message: string, count: number, tabs: CollectedTab[], text: string, id: string }>} 実行結果。
  */
 async function collectUrls(collectRange, format, copy = false, targetTabId = null, filterOptions = {}) {
@@ -313,8 +314,9 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
  * 指定された範囲のタブを正規化して、URL一覧として扱いやすい形に整形する。
  * 対象タブIDが指定された場合は、そのタブ自身または属するウィンドウを基準とする。
  *
- * @param {"current" | "window" | "all"} collectRange 収集範囲。
+ * @param {"current" | "window" | "group" | "all"} collectRange 収集範囲。
  * @param {number|null} targetTabId 基準とするタブID。
+ * @param {Object} filterOptions URLのフィルタリング条件。
  * @returns {Promise<{ filteredTabs: CollectedTab[], collectedTabs: CollectedTab[] }>} 正規化済みのタブ一覧。
  */
 async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
@@ -365,10 +367,10 @@ async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 		} else if ((currentTab.groupId ?? -1) === -1) {
 			tabs = [currentTab];
 		} else {
+			// Chrome APIにフィルタリングを委譲することでパフォーマンスを向上させる
 			tabs = await chrome.tabs.query({
-				windowId: currentTab.windowId,
+				groupId: currentTab.groupId,
 			});
-			tabs = tabs.filter((tab) => (tab.groupId ?? -1) === currentTab.groupId);
 		}
 	} else if (normalizedRange === "all") {
 		tabs = await chrome.tabs.query({});
@@ -524,18 +526,14 @@ async function handleCollectionError(collectRange, format, error, targetTabId) {
  * @returns {"current" | "window" | "group" | "all" | null} 変換後の範囲。
  */
 function commandToRange(command) {
-	switch (command) {
-		case "copy-current-tab":
-			return "current";
-		case "copy-window-tabs":
-			return "window";
-		case "copy-group-tabs":
-			return "group";
-		case "copy-all-tabs":
-			return "all";
-		default:
-			return null;
-	}
+	const commandMap = {
+		"copy-current-tab": "current",
+		"copy-window-tabs": "window",
+		"copy-group-tabs": "group",
+		"copy-all-tabs": "all",
+	};
+
+	return commandMap[command] || null;
 }
 
 /**
