@@ -8,7 +8,14 @@
 
 /**
  * フォーマッタの設定定義
- * prefix, itemFormatter, separator, postfix, encoder, titleFill, emptyFallback の組み合わせで各形式を汎化
+ * Fields:
+ *    prefix:
+ *    itemFormatter:
+ *    separator:
+ *    postfix:
+ *    encoder:
+ *    titleFill:
+ *    emptyFallback:
  */
 const FORMATTERS = {
 	"url": {
@@ -71,7 +78,7 @@ export function formatUrlList(tabs, format) {
 	const separator = def.separator ?? "";
 
 	// タブが0件の場合のフォールバック
-	if (!tabs || tabs.length === 0)
+	if (!tabs?.length)
 		return def.emptyFallback ?? `${prefix}${postfix}`;
 
 	const items = tabs.map(tab => {
@@ -83,10 +90,8 @@ export function formatUrlList(tabs, format) {
 			title = def.titleFill;
 
 		// 指定されたエンコーダでタイトルとURLをエスケープ/エンコード
-		if (def.encoder) {
-			title = def.encoder.title ? def.encoder.title(title) : title;
-			url = def.encoder.url ? def.encoder.url(url) : url;
-		}
+		title = def.encoder?.title?.(title) ?? title;
+		url = def.encoder?.url?.(url) ?? url;
 
 		return def.itemFormatter({ title, url });
 	});
@@ -104,7 +109,7 @@ export function formatUrlList(tabs, format) {
 function escapeCsvCell(value) {
 	const text = String(value ?? "");
 	if (/[",\n]/.test(text))
-		return `"${text.replace(/"/g, '""')}"`;
+		return `"${text.replaceAll('"', '""')}"`;
 	return text;
 }
 
@@ -116,11 +121,11 @@ function escapeCsvCell(value) {
  */
 function escapeHtml(value) {
 	return String(value ?? "")
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;")
-		.replace(/'/g, "&#39;");
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
 }
 
 /**
