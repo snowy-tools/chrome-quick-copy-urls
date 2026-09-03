@@ -7,15 +7,29 @@
  */
 
 /**
+ * フォーマット時に使用するエンコーダ定義
+ *
+ * @typedef {Object} FormatterEncoder
+ * @property {function(string): string} [title] タイトル文字列をエスケープ/エンコードする関数。
+ * @property {function(string): string} [url] URL文字列をエスケープ/エンコードする関数。
+ */
+
+/**
  * フォーマッタの設定定義
- * Fields:
- *    prefix:
- *    itemFormatter:
- *    separator:
- *    postfix:
- *    encoder:
- *    titleFill:
- *    emptyFallback:
+ *
+ * @typedef {Object} FormatterConfig
+ * @property {function({title: string, url: string}): string} itemFormatter 【必須】各タブのタイトルとURLを受け取り、1件分のフォーマット済み文字列を返す関数。
+ * @property {string} [prefix] 【任意】出力全体の前方に付与する文字列。
+ * @property {string} [separator] 【任意】各要素を結合する際の区切り文字列（未指定時は空文字として結合）。
+ * @property {string} [postfix] 【任意】出力全体の後方に付与する文字列。
+ * @property {FormatterEncoder | null} [encoder] 【任意】タイトルとURLのエスケープ/エンコード用関数群。
+ * @property {string} [titleFill] 【任意】タイトルが空文字の場合に補完するデフォルト文字列（例: "Untitled"）。
+ * @property {string} [emptyFallback] 【任意】タブが0件の場合に出力するフォールバック文字列（未指定時は prefix + postfix になる）。
+ */
+
+/**
+ * 各フォーマット形式とフォーマッタ設定の紐付け
+ * @type {Object.<string, FormatterConfig>}
  */
 const FORMATTERS = {
 	"url": {
