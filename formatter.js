@@ -7,9 +7,9 @@
  */
 
 /**
- * フォーマット時に使用するエンコーダ定義
+ * フォーマット時に使用するエスケープ関数群
  *
- * @typedef {Object} FormatterEncoder
+ * @typedef {Object} FormatterEscapers
  * @property {function(string): string} [title] タイトル文字列をエスケープ/エンコードする関数。
  * @property {function(string): string} [url] URL文字列をエスケープ/エンコードする関数。
  */
@@ -18,13 +18,13 @@
  * フォーマッタの設定定義
  *
  * @typedef {Object} FormatterConfig
- * @property {function({title: string, url: string}): string} itemFormatter 【必須】各タブのタイトルとURLを受け取り、1件分のフォーマット済み文字列を返す関数。
- * @property {string} [prefix] 【任意】出力全体の前方に付与する文字列。
- * @property {string} [separator] 【任意】各要素を結合する際の区切り文字列（未指定時は空文字として結合）。
- * @property {string} [postfix] 【任意】出力全体の後方に付与する文字列。
- * @property {FormatterEncoder | null} [encoder] 【任意】タイトルとURLのエスケープ/エンコード用関数群。
- * @property {string} [titleFill] 【任意】タイトルが空文字の場合に補完するデフォルト文字列（例: "Untitled"）。
- * @property {string} [emptyFallback] 【任意】タブが0件の場合に出力するフォールバック文字列（未指定時は prefix + postfix になる）。
+ * @property {function({title: string, url: string}): string} formatItem アイテム1件分の文字列を生成する関数。
+ * @property {string} [prefix] (Optional) 出力全体の前方に付与する文字列。
+ * @property {string} [suffix] (Optional) 出力全体の後方に付与する文字列。
+ * @property {string} [separator] (Optional) 各アイテム要素を結合する際の区切り文字。
+ * @property {FormatterEscapers | null} [escapers] (Optional) タイトルとURLに対するエスケープ処理関数群。
+ * @property {string} [defaultTitle] (Optional) タイトルが空文字の場合に使用する代替文字列。
+ * @property {string} [emptyText] (Optional) タブが0件の場合に出力する文字列。未指定時は prefix + suffix が出力される。
  */
 
 /**
@@ -33,86 +33,87 @@
  */
 const FORMATTERS = {
 	"url": {
-		itemFormatter: ({ url }) => `${url}\n`,
+		formatItem: ({ url }) => `${url}\n`,
 	},
 	"tsv": {
-		itemFormatter: ({ title, url }) => `${title}\t${url}\n`,
+		formatItem: ({ title, url }) => `${title}\t${url}\n`,
 	},
 	"csv": {
-		itemFormatter: ({ title, url }) => `${title},${url}\n`,
-		encoder: { title: escapeCsvCell, url: escapeCsvCell }
+		formatItem: ({ title, url }) => `${title},${url}\n`,
+		escapers: { title: escapeCsvCell, url: escapeCsvCell },
 	},
 	"json": {
 		prefix: "[\n",
-		itemFormatter: ({ title, url }) => `\t${JSON.stringify({ title, url })}`,
+		formatItem: ({ title, url }) => `\t${JSON.stringify({ title, url })}`,
 		separator: ",\n",
-		postfix: "\n]\n",
-		emptyFallback: "[]\n",
-		encoder: null // JSON.stringifyがエンコードを担うため不要
+		suffix: "\n]\n",
+		emptyText: "[]\n",
+		escapers: null, // JSON.stringifyがエンコードを担うため不要
 	},
 	"markdown-link": {
-		itemFormatter: ({ title, url }) => `[${title}](${url})\n`,
-		titleFill: "Untitled",
-		encoder: { title: escapeMarkdownTitle, url: encodeMarkdownUrl }
+		formatItem: ({ title, url }) => `[${title}](${url})\n`,
+		defaultTitle: "Untitled",
+		escapers: { title: escapeMarkdownTitle, url: encodeMarkdownUrl },
 	},
 	"markdown-list": {
-		itemFormatter: ({ title, url }) => `- [${title}](${url})\n`,
-		titleFill: "Untitled",
-		encoder: { title: escapeMarkdownTitle, url: encodeMarkdownUrl }
+		formatItem: ({ title, url }) => `- [${title}](${url})\n`,
+		defaultTitle: "Untitled",
+		escapers: { title: escapeMarkdownTitle, url: encodeMarkdownUrl },
 	},
 	"markdown-table": {
 		prefix: "| title | url |\n| --- | --- |\n",
-		itemFormatter: ({ title, url }) => `| ${title} | ${url} |\n`,
-		titleFill: "Untitled",
-		encoder: { title: escapeMarkdownTitle, url: encodeMarkdownUrl }
+		formatItem: ({ title, url }) => `| ${title} | ${url} |\n`,
+		defaultTitle: "Untitled",
+		escapers: { title: escapeMarkdownTitle, url: encodeMarkdownUrl },
 	},
 	"html-link": {
-		itemFormatter: ({ title, url }) => `<a href="${url}">${title}</a>\n`,
-		titleFill: "Untitled",
-		encoder: { title: escapeHtml, url: escapeHtml }
+		formatItem: ({ title, url }) => `<a href="${url}">${title}</a>\n`,
+		defaultTitle: "Untitled",
+		escapers: { title: escapeHtml, url: escapeHtml },
 	},
 	"html-list": {
 		prefix: "<ul>\n",
-		itemFormatter: ({ title, url }) => `\t<li><a href="${url}">${title}</a></li>\n`,
-		postfix: "</ul>\n",
-		titleFill: "Untitled",
-		encoder: { title: escapeHtml, url: escapeHtml }
+		formatItem: ({ title, url }) => `\t<li><a href="${url}">${title}</a></li>\n`,
+		suffix: "</ul>\n",
+		defaultTitle: "Untitled",
+		escapers: { title: escapeHtml, url: escapeHtml },
 	}
 };
 
 /**
  * @param {TabLike[]} tabs タブ一覧。
- * @param {string} format 出力形式（"url" | "tsv" | "csv" | "json" | "markdown-link" | "markdown-list" | "markdown-table" | "html-link" | "html-list"）。
+ * @param {string} format 出力形式。
  * @returns {string} 生成した文字列。
  */
 export function formatUrlList(tabs, format) {
 	const def = FORMATTERS[format] ?? FORMATTERS["url"];
 	const prefix = def.prefix ?? "";
-	const postfix = def.postfix ?? "";
+	const suffix = def.suffix ?? "";
 	const separator = def.separator ?? "";
 
 	// タブが0件の場合のフォールバック
 	if (!tabs?.length)
-		return def.emptyFallback ?? `${prefix}${postfix}`;
+		return def.emptyText ?? `${prefix}${suffix}`;
 
 	const items = tabs.map(tab => {
 		let title = tab.title ?? "";
 		let url = tab.url ?? "";
 
-		// マークダウン・HTML系など、titleFillが設定されている場合は空文字を補完
-		if (!title && def.titleFill)
-			title = def.titleFill;
+		// マークダウン・HTML系など、defaultTitleが設定されている場合は空文字を補完
+		if (!title && def.defaultTitle)
+			title = def.defaultTitle;
 
 		// 指定されたエンコーダでタイトルとURLをエスケープ/エンコード
-		title = def.encoder?.title?.(title) ?? title;
-		url = def.encoder?.url?.(url) ?? url;
+		title = def.escapers?.title?.(title) ?? title;
+		url = def.escapers?.url?.(url) ?? url;
 
-		return def.itemFormatter({ title, url });
+		return def.formatItem({ title, url });
 	});
 
-	// 各要素を結合し、前後にprefix/postfixを付与（postfixには改行を含める）
-	return `${prefix}${items.join(separator)}${postfix}`;
+	// 各要素を結合し、前後にprefix/suffixを付与（suffixには改行を含める）
+	return `${prefix}${items.join(separator)}${suffix}`;
 }
+
 
 /**
  * CSVのセル値をエスケープする。
