@@ -5,6 +5,7 @@
  */
 
 import { formatUrlList } from "./formatter.js";
+import { normalizeAndFilterTabs } from "./filter.js";
 
 /**
  * @typedef {Object} TabEntry
@@ -26,7 +27,8 @@ import { formatUrlList } from "./formatter.js";
  * @type {ActionState}
  */
 const state = {
-	tabs: [],
+	collectedTabs: [],
+	filteredTabs: [],
 	collectRange: "current",
 	format: "url",
 	displayMode: "detail",
@@ -158,7 +160,8 @@ async function executeUrlCollection() {
 			filterSpecialUrls: state.filterSpecialUrls,
 		});
 
-		state.tabs = response?.tabs ?? [];
+		state.filteredTabs = response?.filteredTabs ?? [];
+		state.collectedTabs = response?.collectedTabs ?? state.filteredTabs;
 
 		if (elements.urlList)
 			elements.urlList.value = response?.text ?? "";
@@ -214,7 +217,10 @@ function loadStateFromAction(actionData) {
 	state.collectRange = actionData.collectRange ?? state.collectRange;
 	state.filterDuplicateUrls = actionData.filterDuplicateUrls ?? state.filterDuplicateUrls;
 	state.filterSpecialUrls = actionData.filterSpecialUrls ?? state.filterSpecialUrls;
-	state.tabs = actionData.tabs ?? [];
+	state.filteredTabs = actionData.filteredTabs ?? [];
+	state.collectedTabs = Array.isArray(actionData.collectedTabs)
+		? actionData.collectedTabs
+		: (Array.isArray(actionData.filteredTabs) ? actionData.filteredTabs : []);
 
 	const rangeRadio = document.querySelector(`input[name="range"][value="${state.collectRange}"]`);
 	if (rangeRadio)
@@ -249,7 +255,7 @@ function showStatus(status) {
 	if (!elements.statusLabel)
 		return;
 
-	const count = status?.count ?? state.tabs.length;
+	const count = status?.count ?? state.filteredTabs.length;
 
 	if (status?.message) {
 		elements.statusLabel.textContent = status.message;
@@ -276,6 +282,32 @@ function clearStatusLabels() {
 	elements.statusLabel.textContent = "";
 	elements.statusLabel.className = "status";
 	elements.statusLabel.classList.remove("flash");
+}
+
+/**
+ * 現在保持している収集結果を、現在のフィルタ設定で再評価して表示用データへ反映する。
+ * タブの再収集は行わず、既に取得済みの一覧のみを再加工する。
+ */
+function reapplyFilterTabs() {
+	const baseTabs = Array.isArray(state.collectedTabs) && state.collectedTabs.length > 0
+		? state.collectedTabs
+		: state.filteredTabs;
+	const filteredTabs = normalizeAndFilterTabs(baseTabs, {
+		filterDuplicateUrls: state.filterDuplicateUrls,
+		filterSpecialUrls: state.filterSpecialUrls,
+	});
+
+	state.filteredTabs = filteredTabs;
+
+	if (elements.urlList)
+		// フォーマットの実行とUIへの反映
+		elements.urlList.value = formatUrlList(filteredTabs, state.format);
+
+	showStatus({
+		ok: true,
+		message: `Filtered ${filteredTabs.length} URL${filteredTabs.length <= 1 ? "" : "s"}`,
+		count: filteredTabs.length,
+	});
 }
 
 /**
@@ -390,7 +422,7 @@ async function onFilterSelectChanged(event) {
 		await chrome.storage.local.set({
 			filterDuplicateUrls: state.filterDuplicateUrls,
 		});
-		await executeUrlCollection();
+		reapplyFilterTabs();
 		return;
 	}
 
@@ -399,7 +431,7 @@ async function onFilterSelectChanged(event) {
 		await chrome.storage.local.set({
 			filterSpecialUrls: state.filterSpecialUrls,
 		});
-		await executeUrlCollection();
+		reapplyFilterTabs();
 	}
 }
 
@@ -421,7 +453,14 @@ async function onFormatSelectChanged(event) {
 	});
 
 	// URLの再収集を行わず、既知のURLをもとにテキストを再フォーマットする
-	elements.urlList.value = formatUrlList(state.tabs, state.format);
+	const filteredTabs = state.filteredTabs;
+	elements.urlList.value = formatUrlList(filteredTabs, state.format);
+
+	showStatus({
+		ok: true,
+		message: `Formatted for ${filteredTabs.length} URL${filteredTabs.length === 1 ? "" : "s"}`,
+		count: filteredTabs.length,
+	});
 }
 
 /**

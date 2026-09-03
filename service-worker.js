@@ -5,6 +5,7 @@
  */
 
 import { formatUrlList } from "./formatter.js";
+import { normalizeAndFilterTabs } from "./filter.js";
 
 /**
  * @typedef {Object} CollectedTab
@@ -24,7 +25,8 @@ import { formatUrlList } from "./formatter.js";
  * @property {string} id アクションを一意に識別するID。
  * @property {string} collectRange 収集対象範囲。
  * @property {string} format 出力フォーマット。
- * @property {CollectedTab[]} tabs 収集したタブ一覧。
+ * @property {CollectedTab[]} filteredTabs 出力対象となるタブ（フィルタ適用済み）。
+ * @property {CollectedTab[]} collectedTabs 収集範囲に含まれるすべてのタブ（フィルタ未適用）。
  * @property {string} text 生成した文字列。
  * @property {string} message 表示用メッセージ。
  * @property {boolean} ok 実行結果。
@@ -197,7 +199,8 @@ function onRuntimeMessage(message, sender, sendResponse) {
 			ok: false,
 			message: error instanceof Error ? error.message : String(error),
 			count: 0,
-			tabs: [],
+			filteredTabs: [],
+			collectedTabs: [],
 			text: "",
 			id: crypto.randomUUID(),
 		});
@@ -242,7 +245,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 			filterDuplicateUrls,
 			filterSpecialUrls,
 		});
-		const text = formatUrlList(data.tabs, format);
+		const text = formatUrlList(data.filteredTabs, format);
 
 		const actionState = {
 			id: crypto.randomUUID(),
@@ -250,7 +253,8 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 			format,
 			filterDuplicateUrls,
 			filterSpecialUrls,
-			tabs: data.tabs,
+			filteredTabs: data.filteredTabs,
+			collectedTabs: data.collectedTabs,
 			text,
 			ok: true,
 			message: "",
@@ -262,24 +266,26 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 
 			isSuccess = copyResult.ok;
 			message = isSuccess
-				? `Copied ${formatTabCount(data.tabs.length)}.`
+				? `Copied ${formatTabCount(data.filteredTabs.length)}.`
 				: (copyResult.error || "Copy failed.");
 
 			actionState.ok = isSuccess;
 			actionState.message = message;
 		} else {
-			message = `Collected ${formatTabCount(data.tabs.length)}.`;
+			message = `Collected ${formatTabCount(data.filteredTabs.length)}.`;
 			actionState.message = message;
 		}
 
 		if (hasValidTabId(targetTabId))
 			cacheAndNotifyActionState(targetTabId, actionState);
 
+		// ポップアップのメッセージ呼び出しに対する応答データを返す
 		return {
 			ok: isSuccess,
 			message,
-			count: data.tabs.length,
-			tabs: data.tabs,
+			count: data.filteredTabs.length,
+			filteredTabs: data.filteredTabs,
+			collectedTabs: data.collectedTabs,
 			text,
 			id: actionState.id,
 		};
@@ -294,7 +300,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
  *
  * @param {"current" | "window" | "all"} collectRange 収集範囲。
  * @param {number|null} targetTabId 基準とするタブID。
- * @returns {Promise<{ tabs: CollectedTab[] }>} 正規化済みのタブ一覧。
+ * @returns {Promise<{ filteredTabs: CollectedTab[], collectedTabs: CollectedTab[] }>} 正規化済みのタブ一覧。
  */
 async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 	const normalizedRange = collectRange === "same-group" ? "group" : collectRange;
@@ -354,95 +360,19 @@ async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 		throw new Error(`Unknown collect range: ${normalizedRange}`);
 	}
 
+	const normalizedTabs = normalizeAndFilterTabs(tabs, {
+		filterDuplicateUrls,
+		filterSpecialUrls,
+	});
+
 	return {
-		tabs: normalizeAndFilterTabs(tabs, {
-			filterDuplicateUrls,
-			filterSpecialUrls,
-		}),
-	};
-}
-
-/**
- * 収集対象のタブを正規化し、重複や特殊URLを除外する。
- *
- * @param {chrome.tabs.Tab[]} tabs タブ一覧。
- * @param {{ filterDuplicateUrls?: boolean, filterSpecialUrls?: boolean }} [options] 除去オプション。
- * @returns {CollectedTab[]} 正規化済みタブ一覧。
- */
-function normalizeAndFilterTabs(tabs, options = {}) {
-	const filterDuplicateUrls = options.filterDuplicateUrls ?? true;
-	const filterSpecialUrls = options.filterSpecialUrls ?? true;
-	const seenUrls = new Set();
-
-	return tabs
-		.filter((tab) => typeof tab?.url === "string" && tab.url.trim().length > 0)
-		.map((tab) => ({
+		filteredTabs: normalizedTabs,
+		collectedTabs: tabs.map((tab) => ({
 			id: tab.id ?? null,
 			title: tab.title ?? "",
-			url: tab.url.trim(),
-		}))
-		.filter(({ url }) => {
-			if (filterSpecialUrls && isSpecialUrl(url))
-				return false;
-
-			const normalizedUrl = normalizeUrl(url);
-			if (!normalizedUrl)
-				return false;
-
-			if (filterDuplicateUrls) {
-				const key = normalizedUrl.toLowerCase();
-				if (seenUrls.has(key))
-					return false;
-				seenUrls.add(key);
-			}
-
-			return true;
-		})
-		.map(({ id, title, url }) => ({
-			id,
-			title,
-			url: normalizeUrl(url) ?? url,
-		}));
-}
-
-/**
- * 特殊URLや無効なURLを除外する。
- *
- * @param {string} value URL文字列。
- * @returns {boolean} 除外対象なら true。
- */
-function isSpecialUrl(value) {
-	const url = value.trim();
-	if (!url)
-		return true;
-
-	const lower = url.toLowerCase();
-	if (lower === "about:blank" || lower.startsWith("about:"))
-		return true;
-	if (lower.startsWith("chrome://")
-		|| lower.startsWith("chrome-extension://")
-		|| lower.startsWith("devtools://")
-		|| lower.startsWith("edge://"))
-		return true;
-	if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("file:"))
-		return true;
-
-	return false;
-}
-
-/**
- * URLを安定した形式へ正規化する。
- *
- * @param {string} value URL文字列。
- * @returns {string | null} 正規化済み URL または null。
- */
-function normalizeUrl(value) {
-	try {
-		const url = new URL(value.trim());
-		return url.href;
-	} catch (error) {
-		return null;
-	}
+			url: typeof tab.url === "string" ? tab.url.trim() : "",
+		})).filter((tab) => typeof tab.url === "string" && tab.url.length > 0),
+	};
 }
 
 /**
