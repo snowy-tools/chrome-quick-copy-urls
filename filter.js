@@ -18,46 +18,44 @@ export function normalizeAndFilterTabs(tabs, options = {}) {
 	const filterSpecialUrls = options.filterSpecialUrls ?? true;
 	const seenUrls = new Set();
 
-	return tabs
-		.filter((tab) => {
-			if (typeof tab?.url !== "string")
-				return false;
+	return tabs.reduce((result, tab) => {
+		if (typeof tab?.url !== "string")
+			return result;
 
-			if (filterBlankUrls && tab.url.trim().length === 0)
-				return false;
+		const trimmedUrl = tab.url.trim();
 
-			return true;
-		})
-		.map((tab) => ({
+		if (filterBlankUrls && trimmedUrl.length === 0)
+			return result;
+
+		if (filterSpecialUrls && isSpecialUrl(trimmedUrl))
+			return result;
+
+		const normalizedUrl = normalizeUrl(trimmedUrl);
+
+		if (!normalizedUrl)
+			return result;
+
+		// 重複URLの判定
+		if (filterDuplicateUrls) {
+			const key = normalizedUrl.toLowerCase();
+
+			if (seenUrls.has(key))
+				return result;
+
+			seenUrls.add(key);
+		}
+
+		result.push({
 			id: tab.id ?? null,
 			title: tab.title ?? "",
-			url: tab.url.trim(),
-		}))
-		.filter(({ url }) => {
-			// 特殊なURLの判定
-			if (filterSpecialUrls && isSpecialUrl(url))
-				return false;
+			url: normalizedUrl,
+		});
 
-			const normalizedUrl = normalizeUrl(url);
-			if (!normalizedUrl)
-				return false;
-
-			// 重複URLの判定
-			if (filterDuplicateUrls) {
-				const key = normalizedUrl.toLowerCase();
-				if (seenUrls.has(key))
-					return false;
-				seenUrls.add(key);
-			}
-
-			return true;
-		})
-		.map(({ id, title, url }) => ({
-			id,
-			title,
-			url: normalizeUrl(url) ?? url,
-		}));
+		return result;
+	}, []);
 }
+
+const SPECIAL_URL_PATTERN = /^(about:|chrome:\/\/|chrome-extension:\/\/|devtools:\/\/|edge:\/\/|javascript:|data:|file:)/i;
 
 /**
  * 特殊URLや無効なURLを除外する。
@@ -67,18 +65,11 @@ export function normalizeAndFilterTabs(tabs, options = {}) {
  */
 export function isSpecialUrl(value) {
 	const url = value.trim();
+
 	if (!url)
 		return true;
 
-	const lower = url.toLowerCase();
-	if (lower === "about:blank" || lower.startsWith("about:"))
-		return true;
-	if (lower.startsWith("chrome://")
-		|| lower.startsWith("chrome-extension://")
-		|| lower.startsWith("devtools://")
-		|| lower.startsWith("edge://"))
-		return true;
-	if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("file:"))
+	if (SPECIAL_URL_PATTERN.test(url))
 		return true;
 
 	return false;
@@ -93,6 +84,7 @@ export function isSpecialUrl(value) {
 export function normalizeUrl(value) {
 	try {
 		const url = new URL(value.trim());
+
 		return url.href;
 	} catch (error) {
 		return null;
