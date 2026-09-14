@@ -31,6 +31,7 @@ import { buildCollectedMessage, buildCopiedMessage } from "./messages.js";
  * @property {boolean} filterSpecialUrls 特殊URL除去の有無。
  * @property {CollectedTab[]} filteredTabs 出力対象となるタブ（フィルタ適用済み）。
  * @property {CollectedTab[]} collectedTabs 収集範囲に含まれるすべてのタブ（フィルタ未適用）。
+ * @property {number} blankCount 収集範囲に含まれていた空文字列URLの件数。
  * @property {string} text 生成した文字列。
  * @property {string} message 表示用メッセージ。
  * @property {boolean} ok 実行結果。
@@ -272,6 +273,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 			filterSpecialUrls,
 			filteredTabs: data.filteredTabs,
 			collectedTabs: data.collectedTabs,
+			blankCount: data.blankCount,
 			text,
 			ok: true,
 			message: "",
@@ -283,13 +285,13 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 
 			isSuccess = copyResult.ok;
 			message = isSuccess
-				? buildCopiedMessage(data.filteredTabs.length)
+				? buildCopiedMessage(data.filteredTabs.length, { blankCount: data.blankCount, filterBlankUrls })
 				: (copyResult.error || "Copy failed.");
 
 			actionState.ok = isSuccess;
 			actionState.message = message;
 		} else {
-			message = buildCollectedMessage(data.filteredTabs.length);
+			message = buildCollectedMessage(data.filteredTabs.length, { blankCount: data.blankCount, filterBlankUrls });
 			actionState.message = message;
 		}
 
@@ -303,6 +305,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 			count: data.filteredTabs.length,
 			filteredTabs: data.filteredTabs,
 			collectedTabs: data.collectedTabs,
+			blankCount: data.blankCount,
 			text,
 			id: actionState.id,
 		};
@@ -385,13 +388,19 @@ async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 		filterSpecialUrls,
 	});
 
+	const collectedTabs = tabs.map((tab) => ({
+		id: tab.id ?? null,
+		title: tab.title ?? "",
+		url: typeof tab.url === "string" ? tab.url.trim() : "",
+	}));
+
+	// フィルタ設定によらず、収集範囲内に空文字列URLが何件あったかを数える
+	const blankCount = collectedTabs.filter((tab) => tab.url === "").length;
+
 	return {
-		collectedTabs: tabs.map((tab) => ({
-			id: tab.id ?? null,
-			title: tab.title ?? "",
-			url: typeof tab.url === "string" ? tab.url.trim() : "",
-		})),
+		collectedTabs,
 		filteredTabs: normalizedTabs,
+		blankCount,
 	};
 }
 

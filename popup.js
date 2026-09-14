@@ -27,6 +27,7 @@ import {
  * @property {string} format 出力フォーマット。
  * @property {"detail" | "compact"} displayMode 表示モード。
  * @property {number|null} tabId ポップアップが表示されているタブのID。
+ * @property {number} blankCount 収集結果に含まれていた空文字列URLの件数。
  */
 
 /**
@@ -39,6 +40,7 @@ const state = {
 	format: "url",
 	displayMode: "detail",
 	tabId: null,
+	blankCount: 0,
 	filterBlankUrls: true,
 	filterDuplicateUrls: true,
 	filterSpecialUrls: true,
@@ -175,6 +177,7 @@ async function executeUrlCollection() {
 
 		state.filteredTabs = response?.filteredTabs ?? [];
 		state.collectedTabs = response?.collectedTabs ?? state.filteredTabs;
+		state.blankCount = response?.blankCount ?? 0;
 
 		if (elements.urlList)
 			elements.urlList.value = response?.text ?? "";
@@ -236,6 +239,7 @@ function loadStateFromAction(actionData) {
 	state.collectedTabs = Array.isArray(actionData.collectedTabs)
 		? actionData.collectedTabs
 		: (Array.isArray(actionData.filteredTabs) ? actionData.filteredTabs : []);
+	state.blankCount = actionData.blankCount ?? 0;
 
 	const rangeRadio = document.querySelector(`input[name="range"][value="${state.collectRange}"]`);
 	if (rangeRadio)

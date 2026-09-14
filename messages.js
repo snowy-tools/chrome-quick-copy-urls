@@ -10,32 +10,58 @@
 /**
  * URL件数を「N URL」または「N URLs」の形式に整形する。
  * 0件の場合も複数形（"0 URLs"）として扱う。
+ * adjective を指定すると「N blank URLs」のように名詞の前に修飾語を挿入する。
  *
  * @param {number} count 件数。
- * @returns {string} 例: "0 URLs", "1 URL", "3 URLs"。
+ * @param {string} [adjective] URLの前に付ける修飾語（例: "blank"）。
+ * @returns {string} 例: "0 URLs", "1 URL", "3 URLs", "2 blank URLs"。
  */
-export function formatUrlCount(count) {
-	return `${count} URL${count === 1 ? "" : "s"}`;
+export function formatUrlCount(count, adjective) {
+	const noun = `URL${count === 1 ? "" : "s"}`;
+
+	return adjective ? `${count} ${adjective} ${noun}` : `${count} ${noun}`;
+}
+
+/**
+ * 収集結果に含まれていた空文字列URLの件数を、追加情報の注記として整形する。
+ * 空文字列URLが0件の場合は何も表示しない。
+ * フィルタで除外されたか、結果にそのまま含まれているかによって文言を変える。
+ *
+ * @param {number} blankCount 空文字列URLの件数。
+ * @param {boolean} filterBlankUrls 空文字列URLをフィルタで除外する設定かどうか。
+ * @returns {string} 例: " (2 blank URLs excluded)"。0件の場合は空文字列。
+ */
+export function buildBlankUrlNote(blankCount, filterBlankUrls) {
+	if (!blankCount)
+		return "";
+
+	const suffix = filterBlankUrls ? "excluded" : "included";
+
+	return ` (${formatUrlCount(blankCount, "blank")} ${suffix})`;
 }
 
 /**
  * URL収集成功時の表示用メッセージを生成する。
+ * 空文字列URLが収集結果に含まれていた場合、その件数を追加情報として付記する。
  *
- * @param {number} count 収集件数。
+ * @param {number} count 収集件数（フィルタ適用後）。
+ * @param {{ blankCount?: number, filterBlankUrls?: boolean }} [blankInfo] 空文字列URLに関する情報。
  * @returns {string} 表示用メッセージ。
  */
-export function buildCollectedMessage(count) {
-	return `Collected ${formatUrlCount(count)}.`;
+export function buildCollectedMessage(count, { blankCount = 0, filterBlankUrls = true } = {}) {
+	return `Collected ${formatUrlCount(count)}.${buildBlankUrlNote(blankCount, filterBlankUrls)}`;
 }
 
 /**
  * クリップボードへのコピー成功時の表示用メッセージを生成する。
+ * 空文字列URLが収集結果に含まれていた場合、その件数を追加情報として付記する。
  *
- * @param {number} count コピー件数。
+ * @param {number} count コピー件数（フィルタ適用後）。
+ * @param {{ blankCount?: number, filterBlankUrls?: boolean }} [blankInfo] 空文字列URLに関する情報。
  * @returns {string} 表示用メッセージ。
  */
-export function buildCopiedMessage(count) {
-	return `Copied ${formatUrlCount(count)}.`;
+export function buildCopiedMessage(count, { blankCount = 0, filterBlankUrls = true } = {}) {
+	return `Copied ${formatUrlCount(count)}.${buildBlankUrlNote(blankCount, filterBlankUrls)}`;
 }
 
 /**
