@@ -6,6 +6,12 @@
 
 import { formatUrlList } from "./formatter.js";
 import { normalizeAndFilterTabs } from "./filter.js";
+import {
+	buildFilteredMessage,
+	buildFormattedMessage,
+	buildCopiedMessage,
+	buildCollectedSummaryText,
+} from "./messages.js";
 
 /**
  * @typedef {Object} TabEntry
@@ -279,9 +285,7 @@ function showStatus(status) {
 		elements.statusLabel.classList.add("flash");
 	} else {
 		clearStatusLabels();
-		elements.statusLabel.textContent = count > 0
-			? `${count} URL${count === 1 ? "" : "s"} collected`
-			: "No URLs collected.";
+		elements.statusLabel.textContent = buildCollectedSummaryText(count);
 	}
 }
 
@@ -319,7 +323,7 @@ function reapplyFilterTabs() {
 
 	showStatus({
 		ok: true,
-		message: `Filtered ${filteredTabs.length} URL${filteredTabs.length <= 1 ? "" : "s"}`,
+		message: buildFilteredMessage(filteredTabs.length),
 		count: filteredTabs.length,
 	});
 }
@@ -391,7 +395,7 @@ async function onCopyButtonClicked() {
 		await navigator.clipboard.writeText(text);
 		showStatus({
 			ok: true,
-			message: `Copied ${itemCount} URL${itemCount === 1 ? "" : "s"}.`,
+			message: buildCopiedMessage(itemCount),
 		});
 	} catch (error) {
 		showStatus({
@@ -471,7 +475,7 @@ async function onFormatSelectChanged(event) {
 
 	showStatus({
 		ok: true,
-		message: `Formatted for ${filteredTabs.length} URL${filteredTabs.length === 1 ? "" : "s"}`,
+		message: buildFormattedMessage(filteredTabs.length),
 		count: filteredTabs.length,
 	});
 }

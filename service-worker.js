@@ -6,6 +6,7 @@
 
 import { formatUrlList } from "./formatter.js";
 import { normalizeAndFilterTabs } from "./filter.js";
+import { buildCollectedMessage, buildCopiedMessage } from "./messages.js";
 
 /**
  * @typedef {Object} CollectedTab
@@ -282,13 +283,13 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 
 			isSuccess = copyResult.ok;
 			message = isSuccess
-				? `Copied ${formatTabCount(data.filteredTabs.length)}.`
+				? buildCopiedMessage(data.filteredTabs.length)
 				: (copyResult.error || "Copy failed.");
 
 			actionState.ok = isSuccess;
 			actionState.message = message;
 		} else {
-			message = `Collected ${formatTabCount(data.filteredTabs.length)}.`;
+			message = buildCollectedMessage(data.filteredTabs.length);
 			actionState.message = message;
 		}
 
@@ -534,16 +535,6 @@ function commandToRange(command) {
 	};
 
 	return commandMap[command] || null;
-}
-
-/**
- * 収集件数を表示用の文章へ整形する。
- *
- * @param {number} count タブ数。
- * @returns {string} 例: "3 URLs"。
- */
-function formatTabCount(count) {
-	return `${count} URL${count === 1 ? "" : "s"}`;
 }
 
 /**
