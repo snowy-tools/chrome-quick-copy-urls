@@ -1,0 +1,7 @@
+.github export-ignore
+.idea export-ignore
+.release-please-manifest.json export-ignore
+release-please-config.json export-ignore
+CHANGELOG.md export-ignore
+README.md export-ignore
+quick-url-copy.iml export-ignore

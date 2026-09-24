@@ -34,7 +34,8 @@ jobs:
         run: |
           npm ci
           npm run build
-          zip -r extension.zip dist/  # ビルド成果物のディレクトリに応じて調整
+          cd dist
+          zip -r ../extension.zip .
 
       - name: Upload Release Asset
         if: ${{ steps.release.outputs.release_created }}
