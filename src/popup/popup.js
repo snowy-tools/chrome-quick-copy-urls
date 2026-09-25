@@ -46,6 +46,29 @@ const state = {
 	filterSpecialUrls: true,
 };
 
+const FILTER_CHECKBOX_NAMES = [
+	"filterBlankUrls",
+	"filterDuplicateUrls",
+	"filterSpecialUrls",
+];
+
+/**
+ * フィルタ設定を state に対して同期する。
+ *
+ * @param {{ filterBlankUrls?: boolean, filterDuplicateUrls?: boolean, filterSpecialUrls?: boolean }} [filterOptions] 反映する設定。
+ */
+function syncFilterState(filterOptions = {}) {
+	state.filterBlankUrls = filterOptions.filterBlankUrls ?? state.filterBlankUrls;
+	state.filterDuplicateUrls = filterOptions.filterDuplicateUrls ?? state.filterDuplicateUrls;
+	state.filterSpecialUrls = filterOptions.filterSpecialUrls ?? state.filterSpecialUrls;
+
+	for (const name of FILTER_CHECKBOX_NAMES) {
+		const checkbox = document.querySelector(`input[name="${name}"]`);
+		if (checkbox)
+			checkbox.checked = state[name];
+	}
+}
+
 /**
  * DOM要素の参照を保持するオブジェクト。
  */
@@ -120,25 +143,11 @@ async function initialize() {
 
 	const displayMode = data.displayMode;
 	state.displayMode = displayMode;
-	state.filterBlankUrls = data.filterBlankUrls ?? true;
-	state.filterDuplicateUrls = data.filterDuplicateUrls ?? true;
-	state.filterSpecialUrls = data.filterSpecialUrls ?? true;
+	syncFilterState(data);
 
 	// Bind DOM elements and register UI event listeners now that DOM is ready
 	bindDomElements();
 	applyDisplayMode(displayMode);
-
-	const blankCheckbox = document.querySelector('input[name="filterBlankUrls"]');
-	if (blankCheckbox)
-		blankCheckbox.checked = state.filterBlankUrls;
-
-	const duplicateCheckbox = document.querySelector('input[name="filterDuplicateUrls"]');
-	if (duplicateCheckbox)
-		duplicateCheckbox.checked = state.filterDuplicateUrls;
-
-	const specialCheckbox = document.querySelector('input[name="filterSpecialUrls"]');
-	if (specialCheckbox)
-		specialCheckbox.checked = state.filterSpecialUrls;
 
 	// ポップアップが存在するウィンドウのアクティブタブを取得する
 	const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -240,9 +249,7 @@ async function getStoredData() {
 function loadStateFromAction(actionData) {
 	state.format = actionData.format ?? state.format;
 	state.collectRange = actionData.collectRange ?? state.collectRange;
-	state.filterBlankUrls = actionData.filterBlankUrls ?? state.filterBlankUrls;
-	state.filterDuplicateUrls = actionData.filterDuplicateUrls ?? state.filterDuplicateUrls;
-	state.filterSpecialUrls = actionData.filterSpecialUrls ?? state.filterSpecialUrls;
+	syncFilterState(actionData);
 	state.filteredTabs = actionData.filteredTabs ?? [];
 	state.collectedTabs = Array.isArray(actionData.collectedTabs)
 		? actionData.collectedTabs
@@ -256,18 +263,6 @@ function loadStateFromAction(actionData) {
 	const formatRadio = document.querySelector(`input[name="format"][value="${state.format}"]`);
 	if (formatRadio)
 		formatRadio.checked = true;
-
-	const blankCheckbox = document.querySelector('input[name="filterBlankUrls"]');
-	if (blankCheckbox)
-		blankCheckbox.checked = state.filterBlankUrls;
-
-	const duplicateCheckbox = document.querySelector('input[name="filterDuplicateUrls"]');
-	if (duplicateCheckbox)
-		duplicateCheckbox.checked = state.filterDuplicateUrls;
-
-	const specialCheckbox = document.querySelector('input[name="filterSpecialUrls"]');
-	if (specialCheckbox)
-		specialCheckbox.checked = state.filterSpecialUrls;
 
 	updateUrlList(actionData);
 	showStatus(actionData);
@@ -448,20 +443,18 @@ async function onRangeSelectChanged(event) {
  * @returns {Promise<void>} 更新完了時に解決する Promise。
  */
 async function onFilterSelectChanged(event) {
-	const name = event.target.name;
+	const { name, checked } = event.target;
 
-	if (name === "filterBlankUrls"
-		|| name === "filterDuplicateUrls"
-		|| name === "filterSpecialUrls"
-	) {
-		state[name] = event.target.checked;
+	if (!FILTER_CHECKBOX_NAMES.includes(name))
+		return;
 
-		await chrome.storage.local.set({
-			[name]: state[name],
-		});
+	state[name] = checked;
 
-		reapplyFilterTabs();
-	}
+	await chrome.storage.local.set({
+		[name]: state[name],
+	});
+
+	reapplyFilterTabs();
 }
 
 /**

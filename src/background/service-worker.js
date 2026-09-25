@@ -78,6 +78,26 @@ const DEFAULT_LAST_CONDITION = {
 	filterSpecialUrls: true,
 };
 
+const FILTER_OPTION_KEYS = [
+	"filterBlankUrls",
+	"filterDuplicateUrls",
+	"filterSpecialUrls",
+];
+
+/**
+ * 収集処理で扱うフィルタ設定を正規化する。
+ *
+ * @param {{ filterBlankUrls?: boolean, filterDuplicateUrls?: boolean, filterSpecialUrls?: boolean }} [filterOptions] 入力されたフィルタ設定。
+ * @returns {{ filterBlankUrls: boolean, filterDuplicateUrls: boolean, filterSpecialUrls: boolean }} 正規化済みのフィルタ設定。
+ */
+function normalizeFilterOptions(filterOptions = {}) {
+	return {
+		filterBlankUrls: filterOptions.filterBlankUrls ?? true,
+		filterDuplicateUrls: filterOptions.filterDuplicateUrls ?? true,
+		filterSpecialUrls: filterOptions.filterSpecialUrls ?? true,
+	};
+}
+
 /**
  * 初回インストールまたは更新時に、未定義の保存データだけをデフォルト値で補完する。
  * ユーザー設定と前回の動作状態の両方をストレージに確保する。
@@ -85,19 +105,19 @@ const DEFAULT_LAST_CONDITION = {
  * @returns {Promise<void>} 補完完了時に解決する Promise。
  */
 async function initializeStorageDefaults() {
-	const current = await chrome.storage.local.get({
+	const defaults = {
 		...DEFAULT_PREFERENCES,
 		...DEFAULT_LAST_CONDITION,
-	});
+	};
+	const current = await chrome.storage.local.get(defaults);
+	const normalizedFilters = normalizeFilterOptions(current);
 
 	await chrome.storage.local.set({
 		displayMode: current.displayMode ?? DEFAULT_PREFERENCES.displayMode,
 		actionButtonCollectRange: current.actionButtonCollectRange ?? DEFAULT_PREFERENCES.actionButtonCollectRange,
 		format: current.format ?? DEFAULT_LAST_CONDITION.format,
 		collectRange: current.collectRange ?? DEFAULT_LAST_CONDITION.collectRange,
-		filterBlankUrls: current.filterBlankUrls ?? DEFAULT_PREFERENCES.filterBlankUrls,
-		filterDuplicateUrls: current.filterDuplicateUrls ?? DEFAULT_PREFERENCES.filterDuplicateUrls,
-		filterSpecialUrls: current.filterSpecialUrls ?? DEFAULT_PREFERENCES.filterSpecialUrls,
+		...normalizedFilters,
 	});
 }
 
@@ -120,16 +140,15 @@ async function onActionClicked(tab) {
 	if (collectRange === "last")
 		collectRange = data.collectRange ?? DEFAULT_LAST_CONDITION.collectRange;
 
-	const format = data.format ?? DEFAULT_LAST_CONDITION.format;
-	const filterBlankUrls = data.filterBlankUrls ?? DEFAULT_LAST_CONDITION.filterBlankUrls;
-	const filterDuplicateUrls = data.filterDuplicateUrls ?? DEFAULT_LAST_CONDITION.filterDuplicateUrls;
-	const filterSpecialUrls = data.filterSpecialUrls ?? DEFAULT_LAST_CONDITION.filterSpecialUrls;
+	const filterOptions = normalizeFilterOptions(data);
 
-	await collectUrls(collectRange, format, true, tab.id, {
-		filterBlankUrls,
-		filterDuplicateUrls,
-		filterSpecialUrls,
-	});
+	await collectUrls(
+        collectRange,
+        data.format ?? DEFAULT_LAST_CONDITION.format,
+        true,
+        tab.id,
+        filterOptions
+    );
 	await openPopup();
 }
 
@@ -149,10 +168,7 @@ async function onCommand(command, tab) {
 
 	// 前回の履歴データを取得・引き継ぐ
 	const data = await chrome.storage.local.get(DEFAULT_LAST_CONDITION);
-	const format = data.format ?? DEFAULT_LAST_CONDITION.format;
-	const filterBlankUrls = data.filterBlankUrls ?? DEFAULT_LAST_CONDITION.filterBlankUrls;
-	const filterDuplicateUrls = data.filterDuplicateUrls ?? DEFAULT_LAST_CONDITION.filterDuplicateUrls;
-	const filterSpecialUrls = data.filterSpecialUrls ?? DEFAULT_LAST_CONDITION.filterSpecialUrls;
+	const filterOptions = normalizeFilterOptions(data);
 
 	// コマンド実行時の対象タブIDを特定する
 	let targetTabId = tab?.id ?? null;
@@ -167,11 +183,13 @@ async function onCommand(command, tab) {
 			targetTabId = tabs[0].id;
 	}
 
-	await collectUrls(collectRange, format, true, targetTabId, {
-		filterBlankUrls,
-		filterDuplicateUrls,
-		filterSpecialUrls,
-	});
+	await collectUrls(
+        collectRange,
+        data.format ?? DEFAULT_LAST_CONDITION.format,
+        true,
+        targetTabId,
+        filterOptions
+    );
 	await openPopup();
 }
 
@@ -236,9 +254,8 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 	const normalizedRange = typeof collectRange === "string" && collectRange === "same-group"
 		? "group"
 		: collectRange;
-	const filterBlankUrls = filterOptions.filterBlankUrls ?? true;
-	const filterDuplicateUrls = filterOptions.filterDuplicateUrls ?? true;
-	const filterSpecialUrls = filterOptions.filterSpecialUrls ?? true;
+	const filterSettings = normalizeFilterOptions(filterOptions);
+	const { filterBlankUrls, filterDuplicateUrls, filterSpecialUrls } = filterSettings;
 
 	try {
 		if (typeof collectRange !== "string" || typeof format !== "string")
@@ -248,9 +265,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 		await chrome.storage.local.set({
 			collectRange: normalizedRange,
 			format,
-			filterBlankUrls,
-			filterDuplicateUrls,
-			filterSpecialUrls,
+			...filterSettings,
 		});
 
 		let isSuccess = true;
@@ -325,9 +340,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
  */
 async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 	const normalizedRange = collectRange === "same-group" ? "group" : collectRange;
-	const filterBlankUrls = filterOptions.filterBlankUrls ?? true;
-	const filterDuplicateUrls = filterOptions.filterDuplicateUrls ?? true;
-	const filterSpecialUrls = filterOptions.filterSpecialUrls ?? true;
+	const { filterBlankUrls, filterDuplicateUrls, filterSpecialUrls } = normalizeFilterOptions(filterOptions);
 	let tabs;
 	let targetTab = null;
 
