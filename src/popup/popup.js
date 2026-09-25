@@ -4,14 +4,14 @@
  * 収集したURLの一覧やコピー状態を表示する。
  */
 
-import { formatUrlList } from "./formatter.js";
-import { normalizeAndFilterTabs } from "./filter.js";
+import { formatUrlList } from "../shared/formatter.js";
+import { normalizeAndFilterTabs } from "../shared/filter.js";
 import {
 	buildFilteredMessage,
 	buildFormattedMessage,
 	buildCopiedMessage,
 	buildCollectedSummaryText,
-} from "./messages.js";
+} from "../shared/messages.js";
 
 /**
  * @typedef {Object} TabEntry

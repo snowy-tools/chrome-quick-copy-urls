@@ -4,9 +4,9 @@
  * 複数のウィンドウやタブで並行して動作できるよう、操作履歴は操作対象のタブIDごとに管理する。
  */
 
-import { formatUrlList } from "./formatter.js";
-import { normalizeAndFilterTabs } from "./filter.js";
-import { buildCollectedMessage, buildCopiedMessage } from "./messages.js";
+import { formatUrlList } from "../shared/formatter.js";
+import { normalizeAndFilterTabs } from "../shared/filter.js";
+import { buildCollectedMessage, buildCopiedMessage } from "../shared/messages.js";
 
 /**
  * @typedef {Object} CollectedTab
@@ -443,7 +443,7 @@ async function copyToClipboard(text) {
  * @returns {Promise<void>} 作成完了時に解決する Promise。
  */
 async function ensureOffscreenDocument() {
-	const offscreenUrl = chrome.runtime.getURL("offscreen/offscreen.html");
+	const offscreenUrl = chrome.runtime.getURL("src/offscreen/offscreen.html");
 
 	const contexts = await chrome.runtime.getContexts({
 		contextTypes: ["OFFSCREEN_DOCUMENT"],
@@ -454,7 +454,7 @@ async function ensureOffscreenDocument() {
 		return;
 
 	await chrome.offscreen.createDocument({
-		url: "offscreen/offscreen.html",
+		url: "src/offscreen/offscreen.html",
 		reasons: ["CLIPBOARD"],
 		justification: "Copy collected tab URLs to the system clipboard.",
 	});
@@ -557,7 +557,7 @@ async function openPopup() {
 	if (chrome.action.openPopup) {
 		try {
 			await chrome.action.setPopup({
-				popup: "popup.html",
+				popup: "src/popup/popup.html",
 			});
 			await chrome.action.openPopup();
 		} catch (error) {

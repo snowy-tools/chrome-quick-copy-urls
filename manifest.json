@@ -11,14 +11,14 @@
 		"offscreen"
 	],
 	"background": {
-		"service_worker": "service-worker.js",
+		"service_worker": "src/background/service-worker.js",
 		"type": "module"
 	},
 	"action": {
 		"default_title": "Quick URL Copy"
 	},
 	"options_ui": {
-		"page": "options.html",
+		"page": "src/options/options.html",
 		"open_in_tab": false
 	},
 	"commands": {
@@ -48,6 +48,6 @@
 		}
 	},
 	"icons": {
-		"48": "icons/icon48.png"
+		"48": "assets/icons/icon48.png"
 	}
 }
