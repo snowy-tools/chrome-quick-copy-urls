@@ -60,6 +60,7 @@ const elements = {
 	refreshButton: /** @type {HTMLButtonElement|null} */ null,
 	copyButton: /** @type {HTMLButtonElement|null} */ null,
 	sortButton: /** @type {HTMLButtonElement|null} */ null,
+	reverseButton: /** @type {HTMLButtonElement|null} */ null,
 };
 
 function bindDomElements() {
@@ -74,6 +75,7 @@ function bindDomElements() {
 	elements.refreshButton = /** @type {HTMLButtonElement|null} */ document.getElementById("refreshButton");
 	elements.copyButton = /** @type {HTMLButtonElement|null} */ document.getElementById("copyButton");
 	elements.sortButton = /** @type {HTMLButtonElement|null} */ document.getElementById("sortButton");
+	elements.reverseButton = /** @type {HTMLButtonElement|null} */ document.getElementById("reverseButton");
 
 	// Register event listeners if elements exist
 	if (elements.rangeSelect)
@@ -90,6 +92,8 @@ function bindDomElements() {
 		elements.modeButton.addEventListener("click", onModeButtonToggled);
 	if (elements.sortButton)
 		elements.sortButton.addEventListener("click", onSortButtonClicked);
+	if (elements.reverseButton)
+		elements.reverseButton.addEventListener("click", onReverseButtonClicked);
 
 	// Listen for runtime messages to update UI
 	chrome.runtime.onMessage.addListener(onRuntimeMessage);
@@ -516,7 +520,7 @@ function onSortButtonClicked() {
 	const text = elements.urlList.value;
 	const lines = text.split(/\r?\n|\n?\r/);
 	const nonEmptyLines = lines.filter(line => line.trim() !== "");
-	const sortedLines = nonEmptyLines.sort();
+	const sortedLines = [...nonEmptyLines].sort();
 
 	elements.urlList.value = sortedLines.join("\n");
 
@@ -524,6 +528,27 @@ function onSortButtonClicked() {
 		ok: true,
 		message: `Sorted ${sortedLines.length} items.`,
 		count: sortedLines.length,
+	});
+}
+
+/**
+ * Reverseボタン押下時に textareaのURLの順序を反転する。
+ */
+function onReverseButtonClicked() {
+	if (!elements.urlList)
+		return;
+
+	const text = elements.urlList.value;
+	const lines = text.split(/\r?\n|\n?\r/);
+	const nonEmptyLines = lines.filter(line => line.trim() !== "");
+	const reversedLines = [...nonEmptyLines].reverse();
+
+	elements.urlList.value = reversedLines.join("\n");
+
+	showStatus({
+		ok: true,
+		message: `Reversed ${reversedLines.length} items.`,
+		count: reversedLines.length,
 	});
 }
 
