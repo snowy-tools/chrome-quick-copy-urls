@@ -59,6 +59,7 @@ const elements = {
 	modeButton: /** @type {HTMLButtonElement|null} */ null,
 	refreshButton: /** @type {HTMLButtonElement|null} */ null,
 	copyButton: /** @type {HTMLButtonElement|null} */ null,
+	sortButton: /** @type {HTMLButtonElement|null} */ null,
 };
 
 function bindDomElements() {
@@ -72,6 +73,7 @@ function bindDomElements() {
 	elements.modeButton = /** @type {HTMLButtonElement|null} */ document.getElementById("modeButton");
 	elements.refreshButton = /** @type {HTMLButtonElement|null} */ document.getElementById("refreshButton");
 	elements.copyButton = /** @type {HTMLButtonElement|null} */ document.getElementById("copyButton");
+	elements.sortButton = /** @type {HTMLButtonElement|null} */ document.getElementById("sortButton");
 
 	// Register event listeners if elements exist
 	if (elements.rangeSelect)
@@ -86,6 +88,8 @@ function bindDomElements() {
 		elements.copyButton.addEventListener("click", onCopyButtonClicked);
 	if (elements.modeButton)
 		elements.modeButton.addEventListener("click", onModeButtonToggled);
+	if (elements.sortButton)
+		elements.sortButton.addEventListener("click", onSortButtonClicked);
 
 	// Listen for runtime messages to update UI
 	chrome.runtime.onMessage.addListener(onRuntimeMessage);
@@ -499,6 +503,27 @@ async function onModeButtonToggled() {
 
 	await chrome.storage.local.set({
 		displayMode: state.displayMode,
+	});
+}
+
+/**
+ * Sortボタン押下時に textareaのURLをソートする。
+ */
+function onSortButtonClicked() {
+	if (!elements.urlList)
+		return;
+
+	const text = elements.urlList.value;
+	const lines = text.split(/\r?\n|\n?\r/);
+	const nonEmptyLines = lines.filter(line => line.trim() !== "");
+	const sortedLines = nonEmptyLines.sort();
+
+	elements.urlList.value = sortedLines.join("\n");
+
+	showStatus({
+		ok: true,
+		message: `Sorted ${sortedLines.length} items.`,
+		count: sortedLines.length,
 	});
 }
 
