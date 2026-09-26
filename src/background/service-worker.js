@@ -519,11 +519,14 @@ async function handleCollectionError(collectRange, format, error, targetTabId) {
 
 	const id = crypto.randomUUID();
 
+	// PersistedAction として期待されるフィールド名に合わせる
 	const actionState = {
 		id,
 		collectRange,
 		format,
-		tabs: [],
+		filteredTabs: [],
+		collectedTabs: [],
+		blankCount: 0,
 		text: "",
 		ok: false,
 		message: `URL retrieval failed: ${message}`,
@@ -536,7 +539,9 @@ async function handleCollectionError(collectRange, format, error, targetTabId) {
 		ok: false,
 		message,
 		count: 0,
-		tabs: [],
+		filteredTabs: [],
+		collectedTabs: [],
+		blankCount: 0,
 		text: "",
 		id,
 	};
