@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
 	"name": "Quick URL Copy",
-	"version": "1.0.0",
+	"version": "1.1.1",
 	"description": "Collect and copy URLs from open tabs.",
 	"minimum_chrome_version": "109",
 	"permissions": [

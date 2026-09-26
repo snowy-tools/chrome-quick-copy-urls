@@ -1,9 +1,12 @@
 name: release-please
 
 on:
-  push:
+  workflow_dispatch:
+  pull_request:
     branches:
-      - main
+      - master
+    types:
+      - closed
 
 permissions:
   contents: write
@@ -11,35 +14,45 @@ permissions:
 
 jobs:
   release-please:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release-please--')) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
-        id: release
+      - id: release
+        uses: googleapis/release-please-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: master
+          skip-github-release: ${{ github.event_name == 'workflow_dispatch' }}
+          skip-github-pull-request: ${{ github.event_name == 'pull_request' }}
 
-      # (オプション) リリース作成時に自動でビルド・ZIP化してGitHub Releaseに添付したい場合
-      - uses: actions/checkout@v4
-        if: ${{ steps.release.outputs.release_created }}
+      # --- リリースが作成された場合のみ実行するビルド＆アップロード処理 ---
+      - name: Checkout
+        if: ${{ steps.release.outputs.releases_created }}
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        if: ${{ steps.release.outputs.release_created }}
+      - name: Setup Node
+        if: ${{ steps.release.outputs.releases_created }}
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: '18'
 
-      - name: Install & Build
-        if: ${{ steps.release.outputs.release_created }}
+      - name: Build Extension
+        if: ${{ steps.release.outputs.releases_created }}
         run: |
           npm ci
           npm run build
+
+      - name: Create ZIP
+        if: ${{ steps.release.outputs.releases_created }}
+        run: |
           cd dist
           zip -r ../extension.zip .
 
       - name: Upload Release Asset
-        if: ${{ steps.release.outputs.release_created }}
+        if: ${{ steps.release.outputs.releases_created }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload ${{ steps.release.outputs.tag_name }} extension.zip
+          gh release upload "${{ steps.release.outputs.tag_name }}" extension.zip --clobber

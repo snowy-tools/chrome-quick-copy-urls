@@ -39,6 +39,19 @@ git clone https://github.com/snowflake36u/quick-url-copy
 4. Click **Load unpacked**.
 5. Select the `quick-url-copy` project directory.
 
+## Release workflow
+
+This repository separates normal development from release operations.
+
+1. Push normal development commits to `master`.
+2. When you are ready to start a release, run the `release-please` GitHub Actions workflow manually from the Actions tab.
+3. `release-please` creates or updates a Release PR with the version bump, changelog, commit range, and package metadata for review.
+4. Review the Release PR in GitHub. If anything looks wrong, fix the configuration or release metadata in a normal commit, push it, and rerun the `release-please` workflow.
+5. When the Release PR looks correct, merge it into `master`.
+6. The release is then finalized by creating the GitHub Release. After that, the build workflow packages the Chrome extension and uploads the artifact to the release.
+
+This avoids creating ad-hoc `chore: prepare release` / `chore: retry release` commits just to test the release workflow.
+
 ## Notes
 
 - The extension uses Manifest V3
