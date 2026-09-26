@@ -78,12 +78,6 @@ const DEFAULT_LAST_CONDITION = {
 	filterSpecialUrls: true,
 };
 
-const FILTER_OPTION_KEYS = [
-	"filterBlankUrls",
-	"filterDuplicateUrls",
-	"filterSpecialUrls",
-];
-
 /**
  * 収集処理で扱うフィルタ設定を正規化する。
  *
