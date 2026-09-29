@@ -18,7 +18,7 @@
  */
 export function formatUrlCount(count, adjective) {
 	const noun = `URL${count === 1 ? "" : "s"}`;
-
+	
 	return adjective ? `${count} ${adjective} ${noun}` : `${count} ${noun}`;
 }
 
@@ -34,9 +34,9 @@ export function formatUrlCount(count, adjective) {
 export function buildBlankUrlNote(blankCount, filterBlankUrls) {
 	if (!blankCount)
 		return "";
-
+	
 	const suffix = filterBlankUrls ? "excluded" : "included";
-
+	
 	return ` (${formatUrlCount(blankCount, "blank")} ${suffix})`;
 }
 

@@ -105,7 +105,7 @@ async function initializeStorageDefaults() {
 	};
 	const current = await chrome.storage.local.get(defaults);
 	const normalizedFilters = normalizeFilterOptions(current);
-
+	
 	await chrome.storage.local.set({
 		displayMode: current.displayMode ?? DEFAULT_PREFERENCES.displayMode,
 		actionButtonCollectRange: current.actionButtonCollectRange ?? DEFAULT_PREFERENCES.actionButtonCollectRange,
@@ -127,22 +127,22 @@ async function onActionClicked(tab) {
 		...DEFAULT_PREFERENCES,
 		...DEFAULT_LAST_CONDITION,
 	});
-
+	
 	// グローバル設定に従って収集範囲を決定する
 	let collectRange = data.actionButtonCollectRange ?? DEFAULT_PREFERENCES.actionButtonCollectRange;
-
+	
 	if (collectRange === "last")
 		collectRange = data.collectRange ?? DEFAULT_LAST_CONDITION.collectRange;
-
+	
 	const filterOptions = normalizeFilterOptions(data);
-
+	
 	await collectUrls(
-        collectRange,
-        data.format ?? DEFAULT_LAST_CONDITION.format,
-        true,
-        tab.id,
-        filterOptions
-    );
+		collectRange,
+		data.format ?? DEFAULT_LAST_CONDITION.format,
+		true,
+		tab.id,
+		filterOptions,
+	);
 	await openPopup();
 }
 
@@ -155,35 +155,35 @@ async function onActionClicked(tab) {
  */
 async function onCommand(command, tab) {
 	const collectRange = commandToRange(command);
-
+	
 	if (!collectRange)
 		// 収集範囲が指定されていない場合、何もせず終了する
 		return;
-
+	
 	// 前回の履歴データを取得・引き継ぐ
 	const data = await chrome.storage.local.get(DEFAULT_LAST_CONDITION);
 	const filterOptions = normalizeFilterOptions(data);
-
+	
 	// コマンド実行時の対象タブIDを特定する
 	let targetTabId = tab?.id ?? null;
-
+	
 	if (!hasValidTabId(targetTabId)) {
 		const tabs = await chrome.tabs.query({
 			active: true,
 			lastFocusedWindow: true,
 		});
-
+		
 		if (tabs.length > 0)
 			targetTabId = tabs[0].id;
 	}
-
+	
 	await collectUrls(
-        collectRange,
-        data.format ?? DEFAULT_LAST_CONDITION.format,
-        true,
-        targetTabId,
-        filterOptions
-    );
+		collectRange,
+		data.format ?? DEFAULT_LAST_CONDITION.format,
+		true,
+		targetTabId,
+		filterOptions,
+	);
 	await openPopup();
 }
 
@@ -198,17 +198,17 @@ async function onCommand(command, tab) {
 function onRuntimeMessage(message, sender, sendResponse) {
 	if (message?.type === "get-action-state") {
 		const actionState = actionCache.get(message.tabId);
-
+		
 		sendResponse(actionState || null);
-
+		
 		return false;
 	}
-
+	
 	if (message?.type !== "collect" && message?.type !== "collect-and-copy")
 		return false;
-
+	
 	const shouldCopy = message.type === "collect-and-copy";
-
+	
 	collectUrls(
 		message.collectRange,
 		message.format,
@@ -230,7 +230,7 @@ function onRuntimeMessage(message, sender, sendResponse) {
 			id: crypto.randomUUID(),
 		});
 	});
-
+	
 	return true;
 }
 
@@ -250,21 +250,21 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 		: collectRange;
 	const filterSettings = normalizeFilterOptions(filterOptions);
 	const { filterBlankUrls, filterDuplicateUrls, filterSpecialUrls } = filterSettings;
-
+	
 	try {
 		if (typeof collectRange !== "string" || typeof format !== "string")
 			throw new Error("Invalid collection parameters.");
-
+		
 		// 次回の実行時に状態を引き継ぐため、今回使用したパラメータを記録する
 		await chrome.storage.local.set({
 			collectRange: normalizedRange,
 			format,
 			...filterSettings,
 		});
-
+		
 		let isSuccess = true;
 		let message = null;
-
+		
 		// URLリストを収集し、テキストに変換
 		const data = await collectTabs(normalizedRange, targetTabId, {
 			filterBlankUrls,
@@ -272,7 +272,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 			filterSpecialUrls,
 		});
 		const text = formatUrlList(data.filteredTabs, format);
-
+		
 		const actionState = {
 			id: crypto.randomUUID(),
 			collectRange: normalizedRange,
@@ -287,26 +287,26 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
 			ok: true,
 			message: "",
 		};
-
+		
 		if (copy) {
 			// コピーを実行する
 			const copyResult = await copyToClipboard(text);
-
+			
 			isSuccess = copyResult.ok;
 			message = isSuccess
 				? buildCopiedMessage(data.filteredTabs.length, { blankCount: data.blankCount, filterBlankUrls })
 				: (copyResult.error || "Copy failed.");
-
+			
 			actionState.ok = isSuccess;
 			actionState.message = message;
 		} else {
 			message = buildCollectedMessage(data.filteredTabs.length, { blankCount: data.blankCount, filterBlankUrls });
 			actionState.message = message;
 		}
-
+		
 		if (hasValidTabId(targetTabId))
 			cacheAndNotifyActionState(targetTabId, actionState);
-
+		
 		// ポップアップのメッセージ呼び出しに対する応答データを返す
 		return {
 			ok: isSuccess,
@@ -337,7 +337,7 @@ async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 	const { filterBlankUrls, filterDuplicateUrls, filterSpecialUrls } = normalizeFilterOptions(filterOptions);
 	let tabs;
 	let targetTab = null;
-
+	
 	if (targetTabId !== null && targetTabId !== undefined) {
 		try {
 			targetTab = await chrome.tabs.get(targetTabId);
@@ -346,7 +346,7 @@ async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 			targetTab = null;
 		}
 	}
-
+	
 	if (normalizedRange === "current") {
 		if (targetTab) {
 			tabs = [targetTab];
@@ -355,33 +355,33 @@ async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 				active: true,
 				lastFocusedWindow: true,
 			});
-
+			
 			tabs = result.slice(0, 1);
 		}
 	} else if (normalizedRange === "highlighted") {
-		const queryOptions = {highlighted: true};
-
+		const queryOptions = { highlighted: true };
+		
 		if (targetTab)
 			queryOptions.windowId = targetTab.windowId;
 		else
 			queryOptions.currentWindow = true;
-
+		
 		tabs = await chrome.tabs.query(queryOptions);
 	} else if (normalizedRange === "window") {
 		const queryOptions = {};
-
+		
 		if (targetTab)
 			queryOptions.windowId = targetTab.windowId;
 		else
 			queryOptions.currentWindow = true;
-
+		
 		tabs = await chrome.tabs.query(queryOptions);
 	} else if (normalizedRange === "group") {
 		const currentTab = targetTab ?? (await chrome.tabs.query({
 			active: true,
 			lastFocusedWindow: true,
 		})).at(0) ?? null;
-
+		
 		if (!currentTab) {
 			tabs = [];
 		} else if ((currentTab.groupId ?? -1) === -1) {
@@ -397,22 +397,22 @@ async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 	} else {
 		throw new Error(`Unknown collect range: ${normalizedRange}`);
 	}
-
+	
 	const normalizedTabs = normalizeAndFilterTabs(tabs, {
 		filterBlankUrls,
 		filterDuplicateUrls,
 		filterSpecialUrls,
 	});
-
+	
 	const collectedTabs = tabs.map((tab) => ({
 		id: tab.id ?? null,
 		title: tab.title ?? "",
 		url: typeof tab.url === "string" ? tab.url.trim() : "",
 	}));
-
+	
 	// フィルタ設定によらず、収集範囲内に空文字列URLが何件あったかを数える
 	const blankCount = collectedTabs.filter((tab) => tab.url === "").length;
-
+	
 	return {
 		collectedTabs,
 		filteredTabs: normalizedTabs,
@@ -434,13 +434,13 @@ async function copyToClipboard(text) {
 			type: "offscreen-copy",
 			text,
 		});
-
+		
 		if (response?.ok) {
 			return {
 				ok: true,
 			};
 		}
-
+		
 		return {
 			ok: false,
 			error: response?.error || "Copy failed.",
@@ -460,15 +460,15 @@ async function copyToClipboard(text) {
  */
 async function ensureOffscreenDocument() {
 	const offscreenUrl = chrome.runtime.getURL("src/offscreen/offscreen.html");
-
+	
 	const contexts = await chrome.runtime.getContexts({
 		contextTypes: ["OFFSCREEN_DOCUMENT"],
 		documentUrls: [offscreenUrl],
 	});
-
+	
 	if (contexts.length > 0)
 		return;
-
+	
 	await chrome.offscreen.createDocument({
 		url: "src/offscreen/offscreen.html",
 		reasons: ["CLIPBOARD"],
@@ -496,7 +496,7 @@ function hasValidTabId(tabId) {
  */
 function cacheAndNotifyActionState(tabId, actionState) {
 	actionCache.set(tabId, actionState);
-
+	
 	chrome.runtime.sendMessage({
 		type: "action-state-updated",
 		tabId,
@@ -519,9 +519,9 @@ async function handleCollectionError(collectRange, format, error, targetTabId) {
 	const message = error instanceof Error
 		? error.message
 		: String(error);
-
+	
 	const id = crypto.randomUUID();
-
+	
 	// PersistedAction として期待されるフィールド名に合わせる
 	const actionState = {
 		id,
@@ -534,10 +534,10 @@ async function handleCollectionError(collectRange, format, error, targetTabId) {
 		ok: false,
 		message: `URL retrieval failed: ${message}`,
 	};
-
+	
 	if (hasValidTabId(targetTabId))
 		cacheAndNotifyActionState(targetTabId, actionState);
-
+	
 	return {
 		ok: false,
 		message,
@@ -564,7 +564,7 @@ function commandToRange(command) {
 		"copy-group-tabs": "group",
 		"copy-all-tabs": "all",
 	};
-
+	
 	return commandMap[command] || null;
 }
 

@@ -17,38 +17,38 @@ export function normalizeAndFilterTabs(tabs, options = {}) {
 	const filterDuplicateUrls = options.filterDuplicateUrls ?? true;
 	const filterSpecialUrls = options.filterSpecialUrls ?? true;
 	const seenUrls = new Set();
-
+	
 	return tabs.reduce((result, tab) => {
 		// 文字列以外の型（undefined/null等）も空文字として安全に文字列化する
 		// これによりユーザーは「空文字が混ざっている = 正常でないタブが存在する」ことに間接的に気付ける
 		// (将来的にはユーザーに直接警告を表示するべき)
 		const rawUrl = typeof tab?.url === "string" ? tab.url : "";
 		const trimmedUrl = rawUrl.trim();
-
+		
 		if (filterBlankUrls && trimmedUrl.length === 0)
 			return result;
-
+		
 		if (filterSpecialUrls && isSpecialUrl(trimmedUrl))
 			return result;
-
+		
 		const normalizedUrl = normalizeUrl(trimmedUrl) ?? trimmedUrl;
-
+		
 		// 重複URLの判定（空文字列でない場合のみ重複判定を実施）
 		if (filterDuplicateUrls && normalizedUrl.length > 0) {
 			const key = normalizedUrl.toLowerCase();
-
+			
 			if (seenUrls.has(key))
 				return result;
-
+			
 			seenUrls.add(key);
 		}
-
+		
 		result.push({
 			id: tab.id ?? null,
 			title: tab.title ?? "",
 			url: normalizedUrl,
 		});
-
+		
 		return result;
 	}, []);
 }
@@ -63,14 +63,11 @@ const SPECIAL_URL_PATTERN = /^(about:|chrome:\/\/|chrome-extension:\/\/|devtools
  */
 export function isSpecialUrl(value) {
 	const url = value.trim();
-
+	
 	if (!url)
 		return false;
-
-	if (SPECIAL_URL_PATTERN.test(url))
-		return true;
-
-	return false;
+	
+	return SPECIAL_URL_PATTERN.test(url);
 }
 
 /**
@@ -82,7 +79,7 @@ export function isSpecialUrl(value) {
 export function normalizeUrl(value) {
 	try {
 		const url = new URL(value.trim());
-
+		
 		return url.href;
 	} catch (error) {
 		return null;

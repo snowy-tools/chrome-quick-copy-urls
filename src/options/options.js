@@ -11,16 +11,16 @@ let rangeSelect = null;
 document.addEventListener("DOMContentLoaded", async () => {
 	rangeSelect = document.getElementById("actionButtonCollectRange");
 	const settings = await chrome.storage.local.get({ actionButtonCollectRange: "current" });
-
+	
 	if (rangeSelect)
 		rangeSelect.value = settings.actionButtonCollectRange;
-
+	
 	// DOM が利用可能になったタイミングでイベントリスナを登録する
 	rangeSelect?.addEventListener("change", async (event) => {
 		const target = event.target;
-
+		
 		await chrome.storage.local.set({
-			actionButtonCollectRange: target.value
+			actionButtonCollectRange: target.value,
 		});
 	});
 });

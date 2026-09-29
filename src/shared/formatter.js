@@ -77,7 +77,7 @@ const FORMATTERS = {
 		suffix: "</ul>\n",
 		defaultTitle: "Untitled",
 		escapers: { title: escapeHtml, url: escapeHtml },
-	}
+	},
 };
 
 /**
@@ -90,26 +90,26 @@ export function formatUrlList(tabs, format) {
 	const prefix = def.prefix ?? "";
 	const suffix = def.suffix ?? "";
 	const separator = def.separator ?? "";
-
+	
 	// タブが0件の場合のフォールバック
 	if (!tabs?.length)
 		return def.emptyText ?? `${prefix}${suffix}`;
-
+	
 	const items = tabs.map(tab => {
 		let title = tab.title ?? "";
 		let url = tab.url ?? "";
-
+		
 		// マークダウン・HTML系など、defaultTitleが設定されている場合は空文字を補完
 		if (!title && def.defaultTitle)
 			title = def.defaultTitle;
-
+		
 		// 指定されたエンコーダでタイトルとURLをエスケープ/エンコード
 		title = def.escapers?.title?.(title) ?? title;
 		url = def.escapers?.url?.(url) ?? url;
-
+		
 		return def.formatItem({ title, url });
 	});
-
+	
 	// 各要素を結合し、前後にprefix/suffixを付与（suffixには改行を含める）
 	return `${prefix}${items.join(separator)}${suffix}`;
 }

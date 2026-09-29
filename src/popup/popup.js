@@ -61,7 +61,7 @@ function syncFilterState(filterOptions = {}) {
 	state.filterBlankUrls = filterOptions.filterBlankUrls ?? state.filterBlankUrls;
 	state.filterDuplicateUrls = filterOptions.filterDuplicateUrls ?? state.filterDuplicateUrls;
 	state.filterSpecialUrls = filterOptions.filterSpecialUrls ?? state.filterSpecialUrls;
-
+	
 	for (const name of FILTER_CHECKBOX_NAMES) {
 		const checkbox = document.querySelector(`input[name="${name}"]`);
 		if (checkbox)
@@ -99,7 +99,7 @@ function bindDomElements() {
 	elements.copyButton = /** @type {HTMLButtonElement|null} */ document.getElementById("copyButton");
 	elements.sortButton = /** @type {HTMLButtonElement|null} */ document.getElementById("sortButton");
 	elements.reverseButton = /** @type {HTMLButtonElement|null} */ document.getElementById("reverseButton");
-
+	
 	// Register event listeners if elements exist
 	if (elements.rangeSelect)
 		elements.rangeSelect.addEventListener("change", onRangeSelectChanged);
@@ -117,7 +117,7 @@ function bindDomElements() {
 		elements.sortButton.addEventListener("click", onSortButtonClicked);
 	if (elements.reverseButton)
 		elements.reverseButton.addEventListener("click", onReverseButtonClicked);
-
+	
 	// Listen for runtime messages to update UI
 	chrome.runtime.onMessage.addListener(onRuntimeMessage);
 }
@@ -140,26 +140,26 @@ function onInitialLoaded(event) {
  */
 async function initialize() {
 	const data = await getStoredData();
-
+	
 	const displayMode = data.displayMode;
 	state.displayMode = displayMode;
 	syncFilterState(data);
-
+	
 	// Bind DOM elements and register UI event listeners now that DOM is ready
 	bindDomElements();
 	applyDisplayMode(displayMode);
-
+	
 	// ポップアップが存在するウィンドウのアクティブタブを取得する
 	const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-
+	
 	state.tabId = tabs.length > 0 ? tabs[0].id : null;
-
+	
 	// バックグラウンドプロセスに現在タブのアクション実行結果を問い合わせる
 	const tabAction = await chrome.runtime.sendMessage({
 		type: "get-action-state",
 		tabId: state.tabId,
 	});
-
+	
 	if (tabAction) {
 		loadStateFromAction(tabAction);
 	} else {
@@ -180,7 +180,7 @@ async function initialize() {
  */
 async function executeUrlCollection() {
 	clearStatusLabels();
-
+	
 	try {
 		const response = await chrome.runtime.sendMessage({
 			type: "collect",
@@ -191,14 +191,14 @@ async function executeUrlCollection() {
 			filterDuplicateUrls: state.filterDuplicateUrls,
 			filterSpecialUrls: state.filterSpecialUrls,
 		});
-
+		
 		state.filteredTabs = response?.filteredTabs ?? [];
 		state.collectedTabs = response?.collectedTabs ?? state.filteredTabs;
 		state.blankCount = response?.blankCount ?? 0;
-
+		
 		if (elements.urlList)
 			elements.urlList.value = response?.text ?? "";
-
+		
 		if (response?.ok) {
 			showStatus({
 				ok: true,
@@ -255,15 +255,15 @@ function loadStateFromAction(actionData) {
 		? actionData.collectedTabs
 		: (Array.isArray(actionData.filteredTabs) ? actionData.filteredTabs : []);
 	state.blankCount = actionData.blankCount ?? 0;
-
+	
 	const rangeRadio = document.querySelector(`input[name="range"][value="${state.collectRange}"]`);
 	if (rangeRadio)
 		rangeRadio.checked = true;
-
+	
 	const formatRadio = document.querySelector(`input[name="format"][value="${state.format}"]`);
 	if (formatRadio)
 		formatRadio.checked = true;
-
+	
 	updateUrlList(actionData);
 	showStatus(actionData);
 }
@@ -280,13 +280,13 @@ function loadStateFromAction(actionData) {
 function showStatus(status) {
 	if (!elements.statusLabel)
 		return;
-
+	
 	const count = status?.count ?? state.filteredTabs.length;
-
+	
 	if (status?.message) {
 		elements.statusLabel.textContent = status.message;
 		elements.statusLabel.className = `status ${status.ok ? "ok" : "error"}`;
-
+		
 		elements.statusLabel.classList.remove("flash");
 		void elements.statusLabel.offsetWidth;
 		elements.statusLabel.classList.add("flash");
@@ -302,7 +302,7 @@ function showStatus(status) {
 function clearStatusLabels() {
 	if (!elements.statusLabel)
 		return;
-
+	
 	elements.statusLabel.textContent = "";
 	elements.statusLabel.className = "status";
 	elements.statusLabel.classList.remove("flash");
@@ -321,13 +321,13 @@ function reapplyFilterTabs() {
 		filterDuplicateUrls: state.filterDuplicateUrls,
 		filterSpecialUrls: state.filterSpecialUrls,
 	});
-
+	
 	state.filteredTabs = filteredTabs;
-
+	
 	if (elements.urlList)
 		// フォーマットの実行とUIへの反映
 		elements.urlList.value = formatUrlList(filteredTabs, state.format);
-
+	
 	showStatus({
 		ok: true,
 		message: buildFilteredMessage(filteredTabs.length),
@@ -343,7 +343,7 @@ function reapplyFilterTabs() {
 function updateUrlList(data) {
 	if (!elements.urlList)
 		return;
-
+	
 	elements.urlList.value = data?.text ?? "";
 }
 
@@ -354,9 +354,9 @@ function updateUrlList(data) {
  */
 function applyDisplayMode(displayMode) {
 	const compact = displayMode === "compact";
-
+	
 	document.body.classList.toggle("compact", compact);
-
+	
 	if (elements.modeButton) {
 		elements.modeButton.textContent = compact ? "▼" : "▲";
 		elements.modeButton.title = compact
@@ -383,13 +383,13 @@ async function onRefreshButtonClicked() {
 async function onCopyButtonClicked() {
 	if (!elements.urlList)
 		return;
-
+	
 	const text = elements.urlList.value;
 	const itemCount = text
 		.split(/\r?\n|\n?\r/)               // 行ごとに分割
 		.filter(line => line.trim() !== "") // 空白を除去して空でない行だけ残す
 		.length;
-
+	
 	if (!text) {
 		showStatus({
 			ok: false,
@@ -397,7 +397,7 @@ async function onCopyButtonClicked() {
 		});
 		return;
 	}
-
+	
 	try {
 		await navigator.clipboard.writeText(text);
 		showStatus({
@@ -421,9 +421,9 @@ async function onCopyButtonClicked() {
 async function onRangeSelectChanged(event) {
 	if (event.target.name !== "range")
 		return;
-
+	
 	state.collectRange = event.target.value;
-
+	
 	// 最新の動作条件をストレージに記録する
 	// このロジックはサービスワーカー側にも存在するが、
 	// メッセージングに失敗した場合にも設定が確実に反映されるように
@@ -431,7 +431,7 @@ async function onRangeSelectChanged(event) {
 	await chrome.storage.local.set({
 		collectRange: state.collectRange,
 	});
-
+	
 	await executeUrlCollection();
 }
 
@@ -444,16 +444,16 @@ async function onRangeSelectChanged(event) {
  */
 async function onFilterSelectChanged(event) {
 	const { name, checked } = event.target;
-
+	
 	if (!FILTER_CHECKBOX_NAMES.includes(name))
 		return;
-
+	
 	state[name] = checked;
-
+	
 	await chrome.storage.local.set({
 		[name]: state[name],
 	});
-
+	
 	reapplyFilterTabs();
 }
 
@@ -466,18 +466,18 @@ async function onFilterSelectChanged(event) {
 async function onFormatSelectChanged(event) {
 	if (event.target.name !== "format")
 		return;
-
+	
 	state.format = event.target.value;
-
+	
 	// 動作条件履歴を記録する
 	await chrome.storage.local.set({
 		format: state.format,
 	});
-
+	
 	// URLの再収集を行わず、既知のURLをもとにテキストを再フォーマットする
 	const filteredTabs = state.filteredTabs;
 	elements.urlList.value = formatUrlList(filteredTabs, state.format);
-
+	
 	showStatus({
 		ok: true,
 		message: buildFormattedMessage(filteredTabs.length),
@@ -494,10 +494,10 @@ async function onModeButtonToggled() {
 	const displayMode = state.displayMode === "detail"
 		? "compact"
 		: "detail";
-
+	
 	state.displayMode = displayMode;
 	applyDisplayMode(displayMode);
-
+	
 	await chrome.storage.local.set({
 		displayMode: state.displayMode,
 	});
@@ -509,14 +509,14 @@ async function onModeButtonToggled() {
 function onSortButtonClicked() {
 	if (!elements.urlList)
 		return;
-
+	
 	const text = elements.urlList.value;
 	const lines = text.split(/\r?\n|\n?\r/);
 	const nonEmptyLines = lines.filter(line => line.trim() !== "");
 	const sortedLines = [...nonEmptyLines].sort();
-
+	
 	elements.urlList.value = sortedLines.join("\n");
-
+	
 	showStatus({
 		ok: true,
 		message: `Sorted ${sortedLines.length} items.`,
@@ -530,14 +530,14 @@ function onSortButtonClicked() {
 function onReverseButtonClicked() {
 	if (!elements.urlList)
 		return;
-
+	
 	const text = elements.urlList.value;
 	const lines = text.split(/\r?\n|\n?\r/);
 	const nonEmptyLines = lines.filter(line => line.trim() !== "");
 	const reversedLines = [...nonEmptyLines].reverse();
-
+	
 	elements.urlList.value = reversedLines.join("\n");
-
+	
 	showStatus({
 		ok: true,
 		message: `Reversed ${reversedLines.length} items.`,
@@ -556,10 +556,10 @@ function onReverseButtonClicked() {
 function onRuntimeMessage(message) {
 	if (message?.type !== "action-state-updated")
 		return;
-
+	
 	if (message.tabId !== state.tabId)
 		return;
-
+	
 	loadStateFromAction(message.actionState);
 }
 
