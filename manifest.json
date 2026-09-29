@@ -23,10 +23,13 @@
 	},
 	"commands": {
 		"copy-current-tab": {
+			"description": "Copy active tab URL"
+		},
+		"copy-highlighted-tabs": {
 			"suggested_key": {
 				"default": "Alt+Shift+1"
 			},
-			"description": "Copy active tab URL"
+			"description": "Copy URLs from selected tabs"
 		},
 		"copy-window-tabs": {
 			"suggested_key": {

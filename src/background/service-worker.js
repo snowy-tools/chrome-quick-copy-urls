@@ -40,7 +40,7 @@ import { buildCollectedMessage, buildCopiedMessage } from "../shared/messages.js
 /**
  * @typedef {Object} UserPreferences
  * @property {string} displayMode ポップアップ画面の表示形式。
- * @property {"current"|"window"|"group"|"all"|"last"} actionButtonCollectRange アクションボタン押下時のタブ収集範囲のグローバル設定。
+ * @property {"current"|"highlighted"|"window"|"group"|"all"|"last"} actionButtonCollectRange アクションボタン押下時のタブ収集範囲のグローバル設定。
  */
 
 /**
@@ -327,7 +327,7 @@ async function collectUrls(collectRange, format, copy = false, targetTabId = nul
  * 指定された範囲のタブを正規化して、URL一覧として扱いやすい形に整形する。
  * 対象タブIDが指定された場合は、そのタブ自身または属するウィンドウを基準とする。
  *
- * @param {"current" | "window" | "group" | "all"} collectRange 収集範囲。
+ * @param {"current" | "highlighted" | "window" | "group" | "all"} collectRange 収集範囲。
  * @param {number|null} targetTabId 基準とするタブID。
  * @param {Object} filterOptions URLのフィルタリング条件。
  * @returns {Promise<{ filteredTabs: CollectedTab[], collectedTabs: CollectedTab[] }>} 正規化済みのタブ一覧。
@@ -358,6 +358,15 @@ async function collectTabs(collectRange, targetTabId, filterOptions = {}) {
 
 			tabs = result.slice(0, 1);
 		}
+	} else if (normalizedRange === "highlighted") {
+		const queryOptions = {highlighted: true};
+
+		if (targetTab)
+			queryOptions.windowId = targetTab.windowId;
+		else
+			queryOptions.currentWindow = true;
+
+		tabs = await chrome.tabs.query(queryOptions);
 	} else if (normalizedRange === "window") {
 		const queryOptions = {};
 
@@ -545,11 +554,12 @@ async function handleCollectionError(collectRange, format, error, targetTabId) {
  * Chrome コマンド名から対象の収集範囲へ変換する。
  *
  * @param {string} command 実行されたショートカット名。
- * @returns {"current" | "window" | "group" | "all" | null} 変換後の範囲。
+ * @returns {"current" | "highlighted" | "window" | "group" | "all" | null} 変換後の範囲。
  */
 function commandToRange(command) {
 	const commandMap = {
 		"copy-current-tab": "current",
+		"copy-highlighted-tabs": "highlighted",
 		"copy-window-tabs": "window",
 		"copy-group-tabs": "group",
 		"copy-all-tabs": "all",
