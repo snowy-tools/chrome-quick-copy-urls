@@ -1,8 +1,11 @@
 {
 	"manifest_version": 3,
 	"name": "Quick URL Copy",
+	"short_name": "Quick URL Copy",
 	"version": "1.0.0",
 	"description": "Collect and copy URLs from open tabs.",
+	"homepage_url": "https://github.com/snowflake36u/quick-url-copy",
+	"author": "snowflake36u",
 	"minimum_chrome_version": "109",
 	"permissions": [
 		"tabs",
