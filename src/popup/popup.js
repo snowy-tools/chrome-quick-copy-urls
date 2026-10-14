@@ -360,8 +360,8 @@ function applyDisplayMode(displayMode) {
 	if (elements.modeButton) {
 		elements.modeButton.textContent = compact ? "▼" : "▲";
 		elements.modeButton.title = compact
-			? "Switch to detailed view"
-			: "Switch to compact view";
+			? "Expand details"
+			: "Fold details";
 		elements.modeButton.setAttribute("aria-expanded", String(!compact));
 	}
 }
