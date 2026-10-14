@@ -11,28 +11,44 @@ Chrome extension for collecting and copying URLs from open tabs. This provides q
 	- Current window
 	- All tabs
 - **Advanced controls on popup:**
-	- Change the collection range and output format interactively
-	- Sort or reverse the URLs in the textarea
-	- Retry URL collection and copy without reopen popup
-	- Switch popup to the compact layout for minimum operation
+	- Interactive options for the collection range and output format
+	- Sort/Reverse buttons to rearrange the collected URL list
+	- Refresh/Copy buttons to refresh URLs and copy URLs manually after changing options
+	- Result messages highlighted on each action finished
+- **Features for quick and easy copy:**
+	- Keyboard shortcuts to copy URLs for each collection range
+	- Action button to trigger copy on click
+	- Foldable popup to hide detail options for low visual stress
 - **Built-in URL filters:**
-	- Remove blank URLs
-	- Remove duplicate URLs
-	- Remove special URLs such as `chrome://`, `about:`, `data:`, `file:`, and similar non-web URLs
+	- Exclude blank URLs
+	- Exclude duplicate URLs
+	- Exclude special URLs such as `chrome://`, `about:`, `data:`, `file:`, and similar non-web URLs
 - **Output formats:**
-	- `url`: one URL per line
-	- `tsv`: `title\turl` per line
-	- `csv`: `title,url` per line
-	- `json`: array of `{ "title": "...", "url": "..." }`
-	- `markdown-link`: `[title](url)` per line
-	- `html-link`: `<a href="url">title</a>` per line
-- **Keyboard shortcuts:**
-	- Support copy commands for each URL collection range
-- **Settings page:**
-	- Choose the default collection range used when the extension action button is clicked
+	- Supports simple url stack, TSV, CSV, JSON, Markdown and HTML
+- **Settings:**
+	- Automatically memorized execution settings for popup
+	- Configurable default collection range on action button clicked
 - **Manifest V3 and privacy:**
 	- No host permissions are requested; the extension uses Chrome's tabs API without reading page contents
 	- Clipboard writes are handled through the offscreen document required by Manifest V3
+
+## Output formats
+
+| Type | Explanation |
+| --- | --- |
+| `url` | one URL per line |
+| `tsv` | `title\turl` per line |
+| `csv` | `title,url` per line |
+| `json` | `[ { "title": "...", "url": "..." }, ... ]` |
+| `markdown-link` | `[title](url)` per line |
+| `html-link` | `<a href="url">title</a>` per line |
+
+
+## Project links
+
+- Repository: https://github.com/snowflake36u/quick-url-copy
+- Privacy policy source: `store/privacy-policy.md`
+- Support: https://github.com/snowflake36u/quick-url-copy/issues
 
 ## Install for local development
 
