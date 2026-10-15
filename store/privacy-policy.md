@@ -46,4 +46,4 @@ This extension does not integrate any third-party analytics, tracking tools, adv
 ## Contact
 
 If you have any questions or feedback regarding this privacy policy, please open an issue on GitHub:
-https://github.com/snowflake36u/quick-url-copy/issues
+https://github.com/snowy-tools/chrome-quick-url-copy/issues

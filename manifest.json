@@ -4,8 +4,8 @@
 	"short_name": "Quick URL Copy",
 	"version": "1.0.0",
 	"description": "Collect and copy URLs from open tabs.",
-	"homepage_url": "https://github.com/snowflake36u/quick-url-copy",
-	"author": "snowflake36u",
+	"homepage_url": "https://github.com/snowy-tools/chrome-quick-url-copy.git",
+	"author": "Snowy Tools Software",
 	"minimum_chrome_version": "109",
 	"permissions": [
 		"tabs",

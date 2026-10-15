@@ -46,16 +46,16 @@ Chrome extension for collecting and copying URLs from open tabs. This provides q
 
 ## Project links
 
-- Repository: https://github.com/snowflake36u/quick-url-copy
+- Repository: https://github.com/snowy-tools/chrome-quick-url-copy
 - Privacy policy source: `store/privacy-policy.md`
-- Support: https://github.com/snowflake36u/quick-url-copy/issues
+- Support: https://github.com/snowy-tools/chrome-quick-url-copy/issues
 
 ## Install for local development
 
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/snowflake36u/quick-url-copy
+git clone https://github.com/snowy-tools/chrome-quick-url-copy
 ```
 
 2. Open `chrome://extensions/`.
