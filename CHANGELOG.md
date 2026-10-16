@@ -3,6 +3,10 @@
 ## [1.1.0](https://github.com/snowy-tools/chrome-quick-url-copy/compare/v1.0.0...v1.1.0) (2026-10-16)
 
 
+### Chore
+
+* Prepare for publication
+
 ### Features
 
 * **icon:** remake icon based on SVG format ([c04742c](https://github.com/snowy-tools/chrome-quick-url-copy/commit/c04742c1dd52103def8a914b162986a9b9dea068))
