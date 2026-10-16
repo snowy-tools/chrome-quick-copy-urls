@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/snowy-tools/chrome-quick-url-copy/compare/v1.0.0...v1.1.0) (2026-10-16)
+
+
+### Features
+
+* **icon:** remake icon based on SVG format ([c04742c](https://github.com/snowy-tools/chrome-quick-url-copy/commit/c04742c1dd52103def8a914b162986a9b9dea068))
+
+
+### Bug Fixes
+
+* **options:** add "Selected tabs" into collect range options ([72a1220](https://github.com/snowy-tools/chrome-quick-url-copy/commit/72a12208e89a542b6074f080c414a1d9ee1db796))
+* **popup:** update titles for view mode toggle buttons based on better UI text practice ([afcb6c2](https://github.com/snowy-tools/chrome-quick-url-copy/commit/afcb6c218dbf5576bf5af27efd7813f44b3b29f9))
+
 ## 1.0.0 (2026-10-03)
 
 
@@ -29,4 +42,3 @@
 * restructure toolbar layout to stack fieldsets of collection range and filter options ([3a94522](https://github.com/snowy-tools/chrome-quick-url-copy/commit/3a9452208d1ec44669389a4c62316d55c33ba6e3))
 * update descriptions for clarity and consistency in manifest and options ([3d77b00](https://github.com/snowy-tools/chrome-quick-url-copy/commit/3d77b00621916c8da21812c33fb3492d458608fa))
 * update README to enhance clarity features and shortcuts ([141e9a7](https://github.com/snowy-tools/chrome-quick-url-copy/commit/141e9a71843a339fa6ed23f44913e71627b2d6f1))
-
