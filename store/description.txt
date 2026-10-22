@@ -1,0 +1,52 @@
+Copy tab URLs fast and effortlessly.
+
+💡 About
+
+Collect and copy URLs instantly from open tabs using a keyboard shortcut or the toolbar button. In the popup, adjust options, reorder the URLs, and copy them again for further fine-tuning.
+
+The quick access to key features and a clean UI makes collecting tab information quick and low-stress.
+
+✨ Features
+
+● Fast copying: Use a keyboard shortcut for the collection range you need, or click the toolbar button to copy URLs using your saved settings.
+
+● Popup controls and feedback: View results, change the collection range and output format, sort or reverse the URL list, refresh the list, and copy again. Animated text highlights make action results easy to notice.
+
+● Collapsible popup: Hide detailed controls for a cleaner, less cluttered view.
+
+● Flexible collection range: Collect URLs from:
+  ・ Active tab
+  ・ Selected tabs
+  ・ Same tab group
+  ・ Current window
+  ・ All tabs
+
+● Multiple output formats: Copy URLs as a plain list, TSV, CSV, JSON, Markdown, or HTML.
+
+● Optional URL filters: Exclude blank URLs, duplicates, and non-web URLs such as chrome://, about:, data:, and file:.
+
+🚀 How to use
+
+● Keyboard shortcut: Use the shortcut for the collection range you want. URLs are copied immediately.
+
+● Toolbar button: Click the extension icon to copy URLs using your saved settings and open the popup with the results.
+
+● Popup: Choose a collection range and output format, reorder the URLs with Sort or Reverse, then click Copy. Collapse the popup to hide detailed controls.
+
+Your latest settings are saved automatically, making repeated copying quick and easy.
+
+🔒 Privacy and security
+
+No host permissions are requested, and page contents are never read.
+
+It uses Chrome's Tabs API to access tab titles and URLs. Settings and recent collection state are stored locally on your device using Chrome storage.
+
+Required permissions: tabs, storage, clipboardWrite, and offscreen.
+
+💬 Support and feedback
+
+● Source code and feedback:
+https://github.com/snowy-tools/chrome-quick-url-copy
+
+● Support this project on Ko-fi:
+https://ko-fi.com/snowflake36u

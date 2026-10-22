@@ -6,16 +6,22 @@
   <img src="docs/images/screenshot_default.png" style="border: 1px solid #d0d7de; width: 440px; max-width: 100%;">
 </picture>
 
-Chrome extension for quickly copying URLs from open tabs. Copy with a keyboard shortcut or a single click on the action button, or fine-tune the collection range and output format on the popup.
+## About
+
+Chrome extension to copy tab URLs fast and effortlessly.
+
+Collect and copy URLs instantly from open tabs using a keyboard shortcut or the toolbar button. In the popup, adjust options, reorder the URLs, and copy them again for further fine-tuning.
+
+The quick access to key features and a clean UI makes collecting tab information quick and low-stress.
 
 ## Features
 
-- **Quick copy with minimal operations:** Keyboard shortcuts for each collection range, and an action button that copies on click.
-- **User-friendly popup:** Foldable detail options for low visual stress, and highlighted messages notifying the result of each action.
-- **Flexible collection range:** Interactively switchable between active tab, selected tabs, same tab group, current window, or all tabs.
+- **Instant copy with minimal steps:** Keyboard shortcut for each collection range, plus an action button that copies using the configured settings.
+- **Popup controls and feedback:** Change the collection range and output format, sort or reverse the URL list, refresh it, and copy it manually. An animated text highlight makes each action's result easy to notice.
+- **Collapsible popup:** Hide the detail options for a simpler, less cluttered view.
+- **Flexible collection range:** Active tab, selected tabs, same tab group, current window, or all tabs.
 - **Multiple output formats:** URL list, TSV, CSV, JSON, Markdown, and HTML.
-- **Built-in URL filters:** Blank, duplicate, and non-web URLs are excluded automatically.
-- **Privacy-friendly:** No host permissions are requested, and page contents are never read.
+- **Optional URL filters:** Exclude blank, duplicate, and non-web URLs.
 
 ## Usage
 
@@ -36,12 +42,12 @@ Each range has its own keyboard shortcut. Clicking the action button copies with
 - Change the collection range and output format interactively.
 - **Sort / Reverse**: rearrange the collected URL list.
 - **Refresh / Copy**: refresh the list and copy it manually after changing options.
-- A highlighted message shows the result of each action.
-- Fold the popup to hide the detail options.
+- An animated text highlight makes each action's result easy to notice.
+- Collapse the popup's detail options for a simpler, less cluttered view.
 
 ### URL filters
 
-It provides options to filter following urls:
+The popup lets you exclude:
 
 - Blank URLs
 - Duplicate URLs
@@ -49,7 +55,7 @@ It provides options to filter following urls:
 
 ### Settings
 
-- The popup remembers the last-used execution settings automatically.
+- The popup remembers the last-used settings automatically.
 - The default collection range used by the action button can be configured.
 
 ## Output formats
@@ -101,5 +107,5 @@ This avoids ad-hoc `chore: prepare release` / `chore: retry release` commits pur
 - It requests these permissions: `tabs`, `storage`, `clipboardWrite`, and `offscreen`.
 - No host permissions are requested, and the extension uses Chrome's tabs API without reading page contents.
 - Clipboard writes are handled through the offscreen document required by Manifest V3.
-- Settings and recent collection state are stored in Chrome storage and reused for subsequent operations.
+- Settings and recent collection state are stored locally in Chrome storage and reused for subsequent operations.
 - The popup and background script share the same collection logic, so the current text area and the last action state stay in sync.
