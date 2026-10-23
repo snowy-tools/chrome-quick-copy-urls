@@ -107,5 +107,6 @@ This avoids ad-hoc `chore: prepare release` / `chore: retry release` commits pur
 - It requests these permissions: `tabs`, `storage`, `clipboardWrite`, and `offscreen`.
 - No host permissions are requested, and the extension uses Chrome's tabs API without reading page contents.
 - Clipboard writes are handled through the offscreen document required by Manifest V3.
-- Settings and recent collection state are stored locally in Chrome storage and reused for subsequent operations.
+- Popup display mode, the action button's configured collection range, the last-used collection range and output format, and URL filter settings are stored locally in Chrome storage. Tab titles, URLs, and collection results are held temporarily in memory and are not persisted there.
+- When you copy a collection, its generated text is written to the system clipboard.
 - The popup and background script share the same collection logic, so the current text area and the last action state stay in sync.
