@@ -1,4 +1,4 @@
-# Quick URL Copy
+# Quick Copy URLs
 
 <a href="https://ko-fi.com/snowflake36u" target="_blank"><img src="docs/images/support_me_on_kofi_blue.png" height="44ex" alt="Buy Me a Coffee at ko-fi.com"></a>
 

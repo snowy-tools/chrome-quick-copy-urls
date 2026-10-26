@@ -1,8 +1,8 @@
-# Privacy Policy for Quick URL Copy
+# Privacy Policy for Quick Copy URLs
 
 Last updated: 2026-10-26
 
-Quick URL Copy processes information about open tabs locally on your device to display and copy URLs. **The extension does not transmit tab information or other user data over the internet or store it on external servers.**
+Quick Copy URLs processes information about open tabs locally on your device to display and copy URLs. **The extension does not transmit tab information or other user data over the internet or store it on external servers.**
 
 The use of information received from Chrome APIs adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements.
 
