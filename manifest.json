@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
-	"name": "Quick URL Copy",
-	"short_name": "Quick URL Copy",
+	"name": "Quick Copy URLs",
+	"short_name": "Quick Copy URLs",
 	"version": "1.0.0",
 	"description": "Collect and copy URLs from open tabs fast and effortlessly.",
 	"homepage_url": "https://github.com/snowy-tools/chrome-quick-url-copy.git",
@@ -18,7 +18,7 @@
 		"type": "module"
 	},
 	"action": {
-		"default_title": "Quick URL Copy"
+		"default_title": "Quick Copy URLs"
 	},
 	"options_ui": {
 		"page": "src/options/options.html",
