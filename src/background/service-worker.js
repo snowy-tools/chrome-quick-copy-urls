@@ -61,7 +61,7 @@ const actionCache = new Map();
  */
 const DEFAULT_PREFERENCES = {
 	displayMode: "detail",
-	actionButtonCollectRange: "current",
+	actionButtonCollectRange: "highlighted",
 	filterBlankUrls: true,
 	filterDuplicateUrls: true,
 	filterSpecialUrls: true,
@@ -72,7 +72,7 @@ const DEFAULT_PREFERENCES = {
  */
 const DEFAULT_LAST_CONDITION = {
 	format: "url",
-	collectRange: "current",
+	collectRange: "highlighted",
 	filterBlankUrls: true,
 	filterDuplicateUrls: true,
 	filterSpecialUrls: true,

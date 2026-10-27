@@ -10,7 +10,7 @@ let rangeSelect = null;
  */
 document.addEventListener("DOMContentLoaded", async () => {
 	rangeSelect = document.getElementById("actionButtonCollectRange");
-	const settings = await chrome.storage.local.get({ actionButtonCollectRange: "current" });
+	const settings = await chrome.storage.local.get({ actionButtonCollectRange: "highlighted" });
 	
 	if (rangeSelect)
 		rangeSelect.value = settings.actionButtonCollectRange;

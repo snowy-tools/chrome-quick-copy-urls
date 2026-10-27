@@ -36,7 +36,7 @@ import {
 const state = {
 	collectedTabs: [],
 	filteredTabs: [],
-	collectRange: "current",
+	collectRange: "highlighted",
 	format: "url",
 	displayMode: "detail",
 	tabId: null,
@@ -230,7 +230,7 @@ async function getStoredData() {
 	return await chrome.storage.local.get({
 		displayMode: "detail",
 		format: "url",
-		collectRange: "current",
+		collectRange: "highlighted",
 		filterBlankUrls: true,
 		filterDuplicateUrls: true,
 		filterSpecialUrls: true,
