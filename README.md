@@ -75,6 +75,10 @@ The popup lets you exclude:
 - Privacy policy source: `store/privacy-policy.md`
 - Support: https://github.com/snowy-tools/chrome-quick-url-copy/issues
 
+## Install
+
+Install Quick Copy URLs from the [Chrome Web Store](https://chromewebstore.google.com/detail/hlljojkfkmgeclcbjdkejlcllopienbk).
+
 ## Install for local development
 
 1. Clone the repository:
